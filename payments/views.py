@@ -9,10 +9,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import IntegrityError
+import paystack
 from .models import Payment
 from .serializers import PaymentSerializer, PaymentStatusUpdateSerializer
 from bookings.models import Booking
-import paystack
+
 
 # Initialize Paystack with your secret key
 paystack.api_key = 'YOUR_PAYSTACK_SECRET_KEY'

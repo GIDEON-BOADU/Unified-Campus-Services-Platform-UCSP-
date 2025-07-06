@@ -38,6 +38,8 @@ class User(AbstractUser):
     phone_number = models.CharField(
         max_length=15, 
         unique=True,
+        null=True,
+        blank=True,
         help_text="Unique phone number for user identification"
     )
     profile_picture = models.ImageField(

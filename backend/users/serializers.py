@@ -125,6 +125,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'username', 'user_type', 'isActive', 'createdAt', 'lastLogin', 'status']
     
+    def to_representation(self, instance):
+        """Add camelCase fields for frontend compatibility"""
+        data = super().to_representation(instance)
+        
+        # Add camelCase versions of key fields
+        data['userType'] = data.get('user_type')
+        data['phoneNumber'] = data.get('phone_number')
+        data['profilePicture'] = data.get('profile_picture')
+        data['firstName'] = data.get('first_name')
+        data['lastName'] = data.get('last_name')
+        
+        return data
+    
     def get_status(self, obj):
         """Get user status based on is_active field."""
         if obj.is_active:

@@ -8,6 +8,10 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime, timedelta
+from .models import BlacklistedToken
 
 from .models import VendorApplication
 from .permissions import IsAdminUserType
@@ -27,6 +31,23 @@ User = get_user_model()
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @authentication_classes([])
+@csrf_exempt
+def test_request(request):
+    """Test endpoint to debug request data"""
+    return Response({
+        'method': request.method,
+        'content_type': request.content_type,
+        'body': str(request.body),
+        'data': request.data,
+        'post': dict(request.POST),
+        'headers': dict(request.headers),
+    })
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@authentication_classes([])
+@csrf_exempt
 def register_user(request):
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
@@ -39,6 +60,7 @@ def register_user(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @authentication_classes([])
+@csrf_exempt
 def login_user(request):
     serializer = UserLoginSerializer(data=request.data)
     if serializer.is_valid():
@@ -194,6 +216,87 @@ def reject_vendor_application(request, application_id: int):
         serializer.save(reviewed_by=request.user, reviewed_at=timezone.now())
         return Response({"message": "Application rejected", "application": VendorApplicationSerializer(application).data}, status=status.HTTP_200_OK)
     return Response({"message": "Rejection failed", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def refresh_token_view(request):
+    """
+    Refresh access token with rotation for enhanced security.
+    
+    Endpoint: POST /api/auth/refresh/
+    
+    This endpoint implements refresh token rotation:
+    - Validates the current refresh token
+    - Generates new access and refresh tokens
+    - Blacklists the old refresh token immediately
+    - Returns new tokens to the client
+    """
+    refresh_token_data = request.data.get('refresh')
+    
+    if not refresh_token_data:
+        return Response({
+            'error': 'Refresh token is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Check if token is blacklisted
+        if BlacklistedToken.objects.filter(token=refresh_token_data).exists():
+            return Response({
+                'error': 'Refresh token has been revoked'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Decode and validate refresh token using JWT library
+        try:
+            # Decode the refresh token to get user info
+            from rest_framework_simplejwt.exceptions import TokenError
+            
+            # Try to decode as JWT token
+            token = RefreshToken(refresh_token_data)
+            user_id = token.payload.get('user_id')
+            
+            if not user_id:
+                # Fallback: try to get user from token payload
+                user_id = token.payload.get('sub')  # JWT standard field
+                
+            if not user_id:
+                return Response({
+                    'error': 'Invalid refresh token format'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Get user
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'User not found'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Generate new tokens using JWT library
+            new_refresh = RefreshToken.for_user(user)
+            new_access_token = str(new_refresh.access_token)
+            new_refresh_token = str(new_refresh)
+            
+            # Blacklist the old refresh token immediately
+            BlacklistedToken.objects.create(token=refresh_token_data, user=user)
+            
+            return Response({
+                'access': new_access_token,
+                'refresh': new_refresh_token,
+                'access_token_expires_in': 15 * 60,  # 15 minutes in seconds
+                'refresh_token_expires_in': 7 * 24 * 60 * 60, # 7 days in seconds
+                'token_type': 'Bearer'
+            })
+            
+        except TokenError as e:
+            return Response({
+                'error': f'Invalid refresh token: {str(e)}'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+    except Exception as e:
+        return Response({
+            'error': 'Token refresh failed'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

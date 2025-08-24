@@ -27,9 +27,7 @@ from payments.views import (
     process_paystack_payment
 )
 from users.views import (
-    register_user, login_user, user_profile, update_profile, delete_user,
-    submit_vendor_application, my_vendor_application,
-    approve_vendor_application, reject_vendor_application, UserViewSet
+    UserViewSet
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -50,18 +48,8 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
-    # User Management (placed BEFORE router include to avoid shadowing)
-    path('api/users/register/', register_user, name='register_user'),
-    path('api/users/login/', login_user, name='login_user'),
-    path('api/users/profile/', user_profile, name='user_profile'),
-    path('api/users/profile/update/', update_profile, name='update_profile'),
-    path('api/users/delete/', delete_user, name='delete_user'),
-
-    # Vendor Applications
-    path('api/users/vendor-applications/submit/', submit_vendor_application, name='submit_vendor_application'),
-    path('api/users/vendor-applications/my/', my_vendor_application, name='my_vendor_application'),
-    path('api/users/vendor-applications/<int:application_id>/approve/', approve_vendor_application, name='approve_vendor_application'),
-    path('api/users/vendor-applications/<int:application_id>/reject/', reject_vendor_application, name='reject_vendor_application'),
+    # User Management is now handled by users app URLs
+    # Vendor Applications are now handled by users app URLs
 
     # Authentication
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

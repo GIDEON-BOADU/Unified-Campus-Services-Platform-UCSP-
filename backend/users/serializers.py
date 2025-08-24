@@ -160,10 +160,14 @@ class UserLoginSerializer(serializers.Serializer):
     - Password validation
     """
     username = serializers.CharField(
+        required=True,
+        allow_blank=False,
         help_text="Username or email address"
     )
     password = serializers.CharField(
+        required=True,
         write_only=True,
+        allow_blank=False,
         help_text="User password"
     )
     

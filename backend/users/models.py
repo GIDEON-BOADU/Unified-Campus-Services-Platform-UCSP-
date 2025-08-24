@@ -240,3 +240,18 @@ class VendorApplication(models.Model):
                 violation_error_message="You have already submitted a vendor application.",
             )
         ]
+
+
+class BlacklistedToken(models.Model):
+    """Track blacklisted refresh tokens to prevent reuse attacks"""
+    token = models.CharField(max_length=500, unique=True)
+    blacklisted_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='blacklisted_tokens')
+    
+    class Meta:
+        db_table = 'blacklisted_tokens'
+        verbose_name = 'Blacklisted Token'
+        verbose_name_plural = 'Blacklisted Tokens'
+    
+    def __str__(self):
+        return f"Blacklisted token for {self.user.email} at {self.blacklisted_at}"

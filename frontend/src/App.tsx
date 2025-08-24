@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { TokenStatus } from './components/common/TokenStatus';
+import { TokenExpiryAlert } from './components/common/TokenExpiryAlert';
 import { HomePage } from './pages/HomePage';
 import { Dashboard } from './pages/Dashboard';
 import { AdminBusinessManagement } from './pages/AdminBusinessManagement';
@@ -19,8 +21,6 @@ import AboutPage from './pages/AboutPage';
 import HelpPage from './pages/HelpPage';
 import ContactPage from './pages/ContactPage';
 import TermsPage from './pages/TermsPage';
-import { TokenStatus } from './components/common/TokenStatus';
-import { TokenExpiryAlert } from './components/common/TokenExpiryAlert';
 import './utils/debug'; // Import debug utilities
 
 function App() {
@@ -81,11 +81,9 @@ function App() {
           } />
         </Routes>
         
-        {/* Token expiry alert */}
-        <TokenExpiryAlert />
-        
-        {/* Development token status indicator */}
+        {/* Token expiry countdown and alerts */}
         <TokenStatus />
+        <TokenExpiryAlert />
       </div>
     </Router>
     </AuthProvider>

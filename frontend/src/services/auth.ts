@@ -1,112 +1,182 @@
-import { apiClient, API_ENDPOINTS } from './api';
-import { User, LoginForm, RegisterForm, ApiResponse } from '../types';
+import { apiClient } from './api';
+import { User } from '../types';
 
-// Authentication Service
-export class AuthService {
-  // Login user
-  static async login(credentials: LoginForm): Promise<{ user: User; access: string; refresh: string }> {
-    console.log('AuthService.login called with:', credentials);
-    const response = await apiClient.post<{ 
-      access: string; 
-      refresh: string; 
-      user: any; // Use any to handle backend format
-      message: string;
-    }>(
-      '/users/login/',
-      credentials
-    );
-    
-    console.log('AuthService.login API response:', response);
-    
-    // Transform backend user data to frontend format
-    const transformedUser: User = {
-      id: response.user.id.toString(),
-      username: response.user.username,
-      email: response.user.email,
-      firstName: response.user.first_name || response.user.firstName,
-      lastName: response.user.last_name || response.user.lastName,
-      userType: response.user.user_type || response.user.userType,
-      phoneNumber: response.user.phone_number || response.user.phoneNumber,
-      profilePicture: response.user.profile_picture || response.user.profilePicture,
-      isActive: response.user.is_active !== false,
-      createdAt: response.user.created_at || response.user.createdAt || response.user.date_joined,
-      // Backend compatibility fields
-      user_type: response.user.user_type,
-      phone_number: response.user.phone_number,
-      profile_picture: response.user.profile_picture,
-      is_active: response.user.is_active,
-      created_at: response.user.created_at,
-    };
-    
-    console.log('Transformed user:', transformedUser);
-    
-    return {
-      user: transformedUser,
-      access: response.access,
-      refresh: response.refresh,
-    };
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  userType: 'student' | 'vendor' | 'admin';
+  phone?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  access: string;
+  refresh: string;
+  message: string;
+}
+
+export interface LoginResult {
+  success: boolean;
+  user?: User;
+  message?: string;
+}
+
+class AuthServiceClass {
+  private readonly API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+  /**
+   * Login user and store tokens
+   */
+  async login(email: string, password: string): Promise<LoginResult> {
+    try {
+      const response = await fetch(`${this.API_BASE}/users/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: email, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Backend login error:', errorData);
+        
+        // Show detailed error information
+        let errorMessage = 'Login failed';
+        if (errorData.errors) {
+          // Format validation errors
+          const errorDetails = Object.entries(errorData.errors)
+            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+            .join('; ');
+          errorMessage = `Login failed: ${errorDetails}`;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      
+      // Store tokens (backend returns 'access' and 'refresh')
+      localStorage.setItem('accessToken', data.access);
+      localStorage.setItem('refreshToken', data.refresh);
+      
+      // Store user data
+      if (data.user) {
+        this.storeUser(data.user);
+      }
+      
+      // Update API client token
+      apiClient.setToken(data.access);
+      
+      return {
+        success: true,
+        user: data.user,
+        message: data.message
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Login failed'
+      };
+    }
   }
 
-  // Register user
-  static async register(userData: RegisterForm): Promise<{ user: User; access: string; refresh: string }> {
-    const response = await apiClient.post<{ 
-      user: User;
-      message: string;
-    }>(
-      '/users/register/',
-      userData
-    );
-    
-    // For registration, we don't get tokens immediately
-    // User needs to login after registration
-    return {
-      user: response.user,
-      access: '',
-      refresh: '',
-    };
+  /**
+   * Register new user
+   */
+  async signup(userData: RegisterData): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.API_BASE}/users/register/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Registration failed');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Registration error:', error);
+      return false;
+    }
   }
 
-  // Get current user profile
-  static async getProfile(): Promise<User> {
-    const response = await apiClient.get<{ user: any }>(API_ENDPOINTS.AUTH.PROFILE);
-    
-    console.log('getProfile response:', response);
-    
-    // Transform backend user data to frontend format (same as login)
-    const transformedUser: User = {
-      id: response.user.id.toString(),
-      username: response.user.username,
-      email: response.user.email,
-      firstName: response.user.first_name || response.user.firstName,
-      lastName: response.user.last_name || response.user.lastName,
-      userType: response.user.user_type || response.user.userType,
-      phoneNumber: response.user.phone_number || response.user.phoneNumber,
-      profilePicture: response.user.profile_picture || response.user.profilePicture,
-      isActive: response.user.is_active !== false,
-      createdAt: response.user.created_at || response.user.createdAt || response.user.date_joined,
-      // Backend compatibility fields
-      user_type: response.user.user_type,
-      phone_number: response.user.phone_number,
-      profile_picture: response.user.profile_picture,
-      is_active: response.user.is_active,
-      created_at: response.user.created_at,
-    };
-    
-    console.log('getProfile transformed user:', transformedUser);
-    
-    return transformedUser;
+  /**
+   * Get current user profile
+   */
+  async getProfile(): Promise<User> {
+    try {
+      const response = await apiClient.get('/users/profile/');
+      return response.user; // Backend wraps user data in a 'user' field
+    } catch (error) {
+      console.error('Get profile error:', error);
+      throw error;
+    }
   }
 
-  // Refresh access token
-  static async refreshToken(refreshToken: string): Promise<{ access: string }> {
-    return apiClient.post<{ access: string }>(API_ENDPOINTS.AUTH.REFRESH, {
-      refresh: refreshToken,
-    });
-  }
-
-  // Logout (client-side only, clear tokens)
-  static logout(): void {
+  /**
+   * Logout user and clear tokens
+   */
+  logout(): void {
+    // Clear tokens
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    
+    // Clear API client token
+    apiClient.clearToken();
+    
+    // Redirect to login
+    window.location.href = '/login';
+  }
+
+  /**
+   * Check if user is authenticated
+   */
+  isAuthenticated(): boolean {
+    const token = localStorage.getItem('accessToken');
+    return !!token && !apiClient.isTokenExpired();
+  }
+
+  /**
+   * Get current user from localStorage (for initial state)
+   */
+  getCurrentUser(): User | null {
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Store user data in localStorage
+   */
+  storeUser(user: User): void {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
+
+  /**
+   * Clear user data from localStorage
+   */
+  clearUser(): void {
+    localStorage.removeItem('user');
   }
 }
+
+export const AuthService = new AuthServiceClass();

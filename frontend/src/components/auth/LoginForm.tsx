@@ -22,17 +22,14 @@ export const LoginForm: React.FC = () => {
     setError(null);
     try {
       console.log('Attempting login with:', formData.username);
-      const result = await login({
-        username: formData.username,
-        password: formData.password
-      });
+      const result = await login(formData.username, formData.password);
       
       console.log('Login result:', result);
       
-      if (!result.success) {
-        setError(result.error || 'Login failed. Please try again.');
-      } else {
+      if (result) {
         console.log('Login successful, user should be redirected');
+      } else {
+        setError('Login failed. Please try again.');
       }
       // Redirect will be handled in useEffect
     } catch (error) {

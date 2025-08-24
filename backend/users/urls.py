@@ -4,7 +4,8 @@ from .views import (
     register_user, login_user, user_profile, update_profile, delete_user,
     VendorApplicationViewSet, UserViewSet,
     submit_vendor_application, my_vendor_application,
-    approve_vendor_application, reject_vendor_application
+    approve_vendor_application, reject_vendor_application,
+    refresh_token_view, test_request
 )
 
 router = DefaultRouter()
@@ -12,6 +13,7 @@ router.register(r'vendor-applications', VendorApplicationViewSet, basename='vend
 router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
+    path('test/', test_request, name='test_request'),
     path('register/', register_user, name='register_user'),
     path('login/', login_user, name='login_user'),
     path('profile/', user_profile, name='user_profile'),
@@ -21,5 +23,6 @@ urlpatterns = [
     path('vendor-applications/my/', my_vendor_application, name='my_vendor_application'),
     path('vendor-applications/<int:application_id>/approve/', approve_vendor_application, name='approve_vendor_application'),
     path('vendor-applications/<int:application_id>/reject/', reject_vendor_application, name='reject_vendor_application'),
+    path('auth/refresh/', refresh_token_view, name='refresh_token'),
     path('', include(router.urls)),
 ]

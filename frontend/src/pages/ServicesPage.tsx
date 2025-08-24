@@ -94,8 +94,15 @@ export const ServicesPage: React.FC = () => {
     }
   };
 
-  const formatPrice = (price: number) => {
-    return price ? `₵${price.toFixed(2)}` : 'Contact for pricing';
+  const formatPrice = (price: any) => {
+    if (price === null || price === undefined || price === '') {
+      return 'Contact for pricing';
+    }
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(numPrice)) {
+      return 'Contact for pricing';
+    }
+    return `₵${numPrice.toFixed(2)}`;
   };
 
   if (loading) {

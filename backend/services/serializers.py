@@ -23,8 +23,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     can_book = serializers.BooleanField(read_only=True)
     can_order = serializers.BooleanField(read_only=True)
     requires_contact = serializers.BooleanField(read_only=True)
-    is_walk_in = serializers.BooleanField(read_only=True)
-    service_items = ServiceItemSerializer(many=True, read_only=True)
+    can_walk_in = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = Service
@@ -32,7 +31,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'id', 'vendor', 'vendor_name', 'service_name', 'description', 'category',
             'service_type', 'base_price', 'is_available', 'availability_status',
             'contact_info', 'location', 'images', 'created_at', 'updated_at',
-            'can_book', 'can_order', 'requires_contact', 'is_walk_in'
+            'can_book', 'can_order', 'requires_contact', 'can_walk_in'
         ]
         read_only_fields = ['vendor', 'created_at', 'updated_at']
     
@@ -94,14 +93,14 @@ class ServiceListSerializer(serializers.ModelSerializer):
     can_book = serializers.BooleanField(read_only=True)
     can_order = serializers.BooleanField(read_only=True)
     requires_contact = serializers.BooleanField(read_only=True)
-    service_items = ServiceItemSerializer(many=True, read_only=True)
     
     class Meta:
         model = Service
         fields = [
             'id', 'vendor_name', 'service_name', 'description', 'category',
             'service_type', 'base_price', 'is_available', 'availability_status',
-            'location', 'images', 'can_book', 'can_order', 'requires_contact', 'service_items'
+            'location', 'images', 'can_book', 'can_order', 'requires_contact',
+            'created_at', 'updated_at'
         ]
 
 

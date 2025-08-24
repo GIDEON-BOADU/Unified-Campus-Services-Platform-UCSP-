@@ -3,8 +3,13 @@ import { Business, Service } from '../../types';
 import { DashboardStats } from './DashboardStats';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBusinesses } from '../../hooks/useBusinesses';
+import { useServices } from '../../hooks/useServices';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { VendorOrderManagement } from './VendorOrderManagement';
+import { AddProductModal } from './AddProductModal';
+import { ServiceFilters } from './ServiceFilters';
+import { EditableProductTile } from './EditableProductTile';
+import { ServiceDetailModal } from './ServiceDetailModal';
 import { 
   Building2, 
   Package, 
@@ -62,10 +67,33 @@ interface NavItem {
 
 export const VendorDashboard: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
+  const { 
+    services, 
+    filteredServices, 
+    isLoading: servicesLoading, 
+    searchTerm,
+    setSearchTerm,
+    selectedCategory,
+    setSelectedCategory,
+    selectedServiceType,
+    setSelectedServiceType,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    clearFilters,
+    fetchServices,
+    updateService,
+    deleteService,
+    rateService
+  } = useServices();
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<NavigationSection>('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [isServiceDetailModalOpen, setIsServiceDetailModalOpen] = useState(false);
   
   // Mock data for MVP - will be replaced with real API calls
   const [business] = useState<Business>({
@@ -129,13 +157,13 @@ export const VendorDashboard: React.FC = () => {
       icon: <LayoutDashboard className="w-5 h-5" />,
       description: 'Overview & quick stats'
     },
-    {
-      id: 'products',
-      label: 'Products',
-      icon: <Package className="w-5 h-5" />,
-      description: 'Manage your offerings',
-      badge: products.length.toString()
-    },
+         {
+       id: 'products',
+       label: 'Products',
+       icon: <Package className="w-5 h-5" />,
+       description: 'Manage your offerings',
+       badge: services.length.toString()
+     },
     {
       id: 'orders',
       label: 'Orders',
@@ -184,19 +212,19 @@ export const VendorDashboard: React.FC = () => {
       change: '+8%', 
       changeType: 'positive' as const 
     },
-    { 
-      name: 'Products', 
-      value: products.length.toString(), 
-      change: '+2', 
-      changeType: 'positive' as const 
-    },
+         { 
+       name: 'Products', 
+       value: services.length.toString(), 
+       change: services.length > 0 ? `+${services.length}` : '0', 
+       changeType: services.length > 0 ? 'positive' as const : 'neutral' as const 
+     },
     { 
       name: 'Rating', 
       value: '4.5', 
       change: '+0.2', 
       changeType: 'positive' as const 
     }
-  ], [recentOrders, products]);
+  ], [recentOrders, services]);
 
   // Calculate business performance metrics
   const businessMetrics = useMemo(() => {
@@ -211,10 +239,53 @@ export const VendorDashboard: React.FC = () => {
       pendingOrders,
       completedOrders,
       lowStockProducts,
-      totalProducts: products.length,
+      totalProducts: services.length,
       lastUpdated: lastRefresh
     };
-  }, [recentOrders, products, lastRefresh]);
+  }, [recentOrders, services, lastRefresh]);
+
+  // Handle product addition
+  const handleProductAdded = () => {
+    console.log('Product added successfully');
+    // Refresh the services list
+    fetchServices();
+  };
+
+  // Handle service update
+  const handleServiceUpdate = async (serviceId: string, updatedData: Partial<Service>) => {
+    try {
+      await updateService(serviceId, updatedData);
+      // Services will be automatically refreshed
+    } catch (error) {
+      console.error('Failed to update service:', error);
+    }
+  };
+
+  // Handle service deletion
+  const handleServiceDelete = async (serviceId: string) => {
+    try {
+      await deleteService(serviceId);
+      // Services will be automatically refreshed
+    } catch (error) {
+      console.error('Failed to delete service:', error);
+    }
+  };
+
+  // Handle service view
+  const handleServiceView = (service: Service) => {
+    setSelectedService(service);
+    setIsServiceDetailModalOpen(true);
+  };
+
+  // Handle service rating
+  const handleServiceRate = async (serviceId: string, rating: number, comment: string) => {
+    try {
+      await rateService(serviceId, rating, comment);
+      // Services will be automatically refreshed
+    } catch (error) {
+      console.error('Failed to rate service:', error);
+    }
+  };
 
   // Refresh data
   const handleRefresh = async () => {
@@ -456,55 +527,83 @@ export const VendorDashboard: React.FC = () => {
       case 'products':
         return (
           <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Products & Services</h1>
-                <p className="text-lg text-gray-600">Manage your business offerings</p>
-              </div>
-              <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-2xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add Product
-              </button>
-            </div>
+                         <div className="flex items-center justify-between">
+               <div>
+                 <h1 className="text-3xl font-bold text-gray-900">Products & Services</h1>
+                 <p className="text-lg text-gray-600">Manage your business offerings</p>
+               </div>
+               <button 
+                 onClick={() => setIsAddProductModalOpen(true)}
+                 className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-2xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
+               >
+                 <Plus className="w-4 h-4" />
+                 Add Product
+               </button>
+             </div>
+
+             {/* Service Filters */}
+             <ServiceFilters
+               searchTerm={searchTerm}
+               setSearchTerm={setSearchTerm}
+               selectedCategory={selectedCategory}
+               setSelectedCategory={setSelectedCategory}
+               selectedServiceType={selectedServiceType}
+               setSelectedServiceType={setSelectedServiceType}
+               sortBy={sortBy}
+               setSortBy={setSortBy}
+               sortOrder={sortOrder}
+               setSortOrder={setSortOrder}
+               onClearFilters={clearFilters}
+             />
 
             {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map(product => (
-                <div key={product.id} className="border border-gray-200 rounded-2xl p-6 hover:border-purple-300 hover:shadow-md transition-all duration-300 group">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
-                      {product.name}
-                    </h3>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      product.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {product.isAvailable ? 'Available' : 'Out of Stock'}
-                    </span>
-                  </div>
-                  
-                  <p className="text-gray-600 mb-4 line-clamp-2">{product.description}</p>
-                  
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-2xl font-bold text-gray-900">${product.price}</span>
-                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                      <Package className="w-4 h-4" />
-                      Service
-                    </span>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      View
-                    </button>
-                    <button className="flex-1 bg-purple-100 text-purple-700 px-3 py-2 rounded-xl text-sm font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2">
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {servicesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <LoadingSpinner size="lg" />
+                <span className="ml-3 text-gray-600">Loading services...</span>
+              </div>
+                         ) : filteredServices.length === 0 ? (
+                             <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
+                 <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                 <h3 className="text-lg font-medium text-gray-900 mb-2">
+                   {services.length === 0 ? 'No services yet' : 'No services match your filters'}
+                 </h3>
+                 <p className="text-gray-600 mb-4">
+                   {services.length === 0 
+                     ? 'Start by adding your first product or service'
+                     : 'Try adjusting your search criteria or clear all filters'
+                   }
+                 </p>
+                 {services.length === 0 ? (
+                   <button 
+                     onClick={() => setIsAddProductModalOpen(true)}
+                     className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+                   >
+                     <Plus className="w-4 h-4 inline mr-2" />
+                     Add Your First Service
+                   </button>
+                 ) : (
+                   <button 
+                     onClick={clearFilters}
+                     className="bg-gray-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-gray-700 transition-all duration-300"
+                   >
+                     Clear All Filters
+                   </button>
+                 )}
+               </div>
+            ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {filteredServices.map(service => (
+                   <EditableProductTile
+                     key={service.id}
+                     service={service}
+                     onUpdate={handleServiceUpdate}
+                     onDelete={handleServiceDelete}
+                     onView={handleServiceView}
+                   />
+                 ))}
+               </div>
+            )}
           </div>
         );
 
@@ -653,6 +752,25 @@ export const VendorDashboard: React.FC = () => {
           {renderSection()}
         </div>
       </div>
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        isOpen={isAddProductModalOpen}
+        onClose={() => setIsAddProductModalOpen(false)}
+        onProductAdded={handleProductAdded}
+      />
+
+      {/* Service Detail Modal */}
+      <ServiceDetailModal
+        service={selectedService}
+        isOpen={isServiceDetailModalOpen}
+        onClose={() => {
+          setIsServiceDetailModalOpen(false);
+          setSelectedService(null);
+        }}
+        onRate={handleServiceRate}
+        isStudent={user?.userType === 'student'}
+      />
     </div>
   );
 }; 

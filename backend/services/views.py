@@ -12,11 +12,15 @@ from django.db.models import Count, Avg, Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import Service, Order, Review, VendorProfile
+from bookings.models import Booking
+from payments.models import Payment
 from .serializers import (
     ServiceSerializer, ServiceListSerializer, ServiceAvailabilitySerializer,
     OrderSerializer, OrderStatusUpdateSerializer, ServiceContactSerializer,
     ReviewSerializer, ReviewCreateSerializer, VendorProfileSerializer
 )
+from bookings.serializers import BookingSerializer
+from payments.serializers import PaymentSerializer
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -1121,3 +1125,171 @@ class VendorProfileViewSet(viewsets.ModelViewSet):
                 'message': 'Failed to retrieve vendor dashboard',
                 'errors': {'detail': 'An unexpected error occurred.'}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class StudentOrderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for student order management.
+    
+    Features:
+    - Student-specific order filtering
+    - Order creation and cancellation
+    - Status tracking
+    """
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Return only orders for the current student.
+        
+        Returns:
+            QuerySet: Orders for the current student
+        """
+        return Order.objects.filter(customer=self.request.user)
+
+    def perform_create(self, serializer):
+        """
+        Set the customer when creating an order.
+        
+        Args:
+            serializer: Order serializer instance
+        """
+        serializer.save(customer=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def cancel_order(self, request, pk=None):
+        """
+        Cancel an order (student only).
+        
+        Endpoint: POST /api/student/orders/{id}/cancel_order/
+        
+        Authentication: Required (JWT token)
+        Permissions: Student only, order owner
+        
+        Returns:
+        - 200: Order cancelled successfully
+        - 403: Permission denied
+        - 404: Order not found
+        """
+        try:
+            order = self.get_object()
+            
+            # Check if order can be cancelled
+            if order.order_status not in ['pending', 'confirmed']:
+                return Response({
+                    'message': 'Order cannot be cancelled',
+                    'errors': {'detail': 'Only pending or confirmed orders can be cancelled.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update order status
+            order.order_status = 'cancelled'
+            order.save()
+            
+            serializer = self.get_serializer(order)
+            
+            return Response({
+                'message': 'Order cancelled successfully',
+                'order': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Failed to cancel order',
+                'errors': {'detail': 'An unexpected error occurred.'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class StudentBookingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for student booking management.
+    
+    Features:
+    - Student-specific booking filtering
+    - Booking creation and cancellation
+    - Conflict detection
+    """
+    serializer_class = BookingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Return only bookings for the current student.
+        
+        Returns:
+            QuerySet: Bookings for the current student
+        """
+        return Booking.objects.filter(student=self.request.user)
+
+    def perform_create(self, serializer):
+        """
+        Set the student when creating a booking.
+        
+        Args:
+            serializer: Booking serializer instance
+        """
+        serializer.save(student=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def cancel_booking(self, request, pk=None):
+        """
+        Cancel a booking (student only).
+        
+        Endpoint: POST /api/student/bookings/{id}/cancel_booking/
+        
+        Authentication: Required (JWT token)
+        Permissions: Student only, booking owner
+        
+        Returns:
+        - 200: Booking cancelled successfully
+        - 403: Permission denied
+        - 404: Booking not found
+        """
+        try:
+            booking = self.get_object()
+            
+            # Check if booking can be cancelled
+            if booking.booking_status not in ['pending', 'confirmed']:
+                return Response({
+                    'message': 'Booking cannot be cancelled',
+                    'errors': {'detail': 'Only pending or confirmed bookings can be cancelled.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update booking status
+            booking.booking_status = 'cancelled'
+            booking.save()
+            
+            serializer = self.get_serializer(booking)
+            
+            return Response({
+                'message': 'Booking cancelled successfully',
+                'booking': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Failed to cancel booking',
+                'errors': {'detail': 'An unexpected error occurred.'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class StudentPaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for student payment history.
+    
+    Features:
+    - Student-specific payment filtering
+    - Payment history display
+    - Transaction details
+    """
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Return only payments for the current student.
+        
+        Returns:
+            QuerySet: Payments for the current student
+        """
+        return Payment.objects.filter(student=self.request.user)

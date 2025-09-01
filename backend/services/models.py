@@ -868,3 +868,5 @@ class Review(models.Model):
                 violation_error_message="You can only review a service once.",
             )
         ]
+
+

@@ -156,6 +156,34 @@ class VendorApplication(models.Model):
         help_text="Business address"
     )
     
+    # Additional contact and business information
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Business phone number"
+    )
+    email = models.EmailField(
+        blank=True,
+        null=True,
+        help_text="Business email address"
+    )
+    website = models.URLField(
+        blank=True,
+        null=True,
+        help_text="Business website URL"
+    )
+    experience = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Business experience and background"
+    )
+    reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Reason for wanting to join the platform"
+    )
+    
     # Application status and metadata
     status = models.CharField(
         max_length=20,

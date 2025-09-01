@@ -443,3 +443,5 @@ class VendorProfileSerializer(serializers.ModelSerializer):
         # Set the user to the current user
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+
+

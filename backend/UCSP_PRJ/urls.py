@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from common.views import admin_dashboard
 from rest_framework.routers import DefaultRouter
-from services.views import ServiceViewSet, OrderViewSet, ReviewViewSet, VendorProfileViewSet
+from services.views import ServiceViewSet, OrderViewSet, ReviewViewSet, VendorProfileViewSet, StudentOrderViewSet, StudentBookingViewSet, StudentPaymentViewSet
 from bookings.views import BookingViewSet
 from payments.views import (
     create_payment, payment_list, payment_detail, 
@@ -42,6 +42,11 @@ router.register(r'bookings', BookingViewSet, basename='booking')
 router.register(r'reviews', ReviewViewSet, basename='review')
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'vendor-profiles', VendorProfileViewSet, basename='vendor-profile')
+
+# Student-specific routes
+router.register(r'student/orders', StudentOrderViewSet, basename='student-order')
+router.register(r'student/bookings', StudentBookingViewSet, basename='student-booking')
+router.register(r'student/payments', StudentPaymentViewSet, basename='student-payment')
 
 
 urlpatterns = [

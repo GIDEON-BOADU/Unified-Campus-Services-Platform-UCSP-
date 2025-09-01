@@ -242,7 +242,8 @@ class VendorApplicationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'applicant', 'applicant_name', 'applicant_email', 'applicant_phone',
             'business_name', 'business_description', 'category', 'category_display',
-            'address', 'status', 'status_display', 'notes', 'submitted_at',
+            'address', 'phone', 'email', 'website', 'experience', 'reason',
+            'status', 'status_display', 'notes', 'submitted_at',
             'reviewed_at', 'reviewed_by', 'reviewer_name'
         ]
         read_only_fields = [

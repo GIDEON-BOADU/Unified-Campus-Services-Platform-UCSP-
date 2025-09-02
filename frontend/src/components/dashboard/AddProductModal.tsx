@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Package, DollarSign, MapPin, MessageCircle, Clock, Image as ImageIcon } from 'lucide-react';
+import { X, Package, DollarSign, MapPin, MessageCircle, Clock, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useServices, CreateServiceData } from '../../hooks/useServices';
 
@@ -20,9 +20,9 @@ interface ProductFormData {
   availability_status: string;
   contact_info: string;
   location: string;
-  supports_booking: boolean;
-  supports_ordering: boolean;
-  supports_walk_in: boolean;
+  can_book: boolean;
+  can_order: boolean;
+  can_walk_in: boolean;
   requires_contact: boolean;
 }
 
@@ -60,6 +60,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   const { user } = useAuth();
   const { createService } = useServices();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
@@ -73,9 +74,9 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     availability_status: 'available',
     contact_info: '',
     location: '',
-    supports_booking: false,
-    supports_ordering: false,
-    supports_walk_in: false,
+    can_book: false,
+    can_order: false,
+    can_walk_in: false,
     requires_contact: false
   });
 
@@ -85,6 +86,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
+    // Clear error when user starts typing
+    if (error) setError(null);
   };
 
   const handleCheckboxChange = (name: keyof ProductFormData) => {
@@ -92,31 +95,89 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       ...prev,
       [name]: !prev[name]
     }));
+    // Clear error when user makes changes
+    if (error) setError(null);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image file size must be less than 5MB');
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onload = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Clear error when image is selected
+      if (error) setError(null);
     }
   };
 
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    if (error) setError(null);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      service_name: '',
+      description: '',
+      category: '',
+      service_type: '',
+      base_price: '',
+      has_flexible_pricing: false,
+      is_available: true,
+      availability_status: 'available',
+      contact_info: '',
+      location: '',
+      can_book: false,
+      can_order: false,
+      can_walk_in: false,
+      requires_contact: false
+    });
+    setSelectedImage(null);
+    setImagePreview(null);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Form submitted, starting service creation...');
     setIsSubmitting(true);
+    setError(null);
 
     try {
+      // Validate required fields
+      if (!formData.service_name.trim()) {
+        throw new Error('Service name is required');
+      }
+      
+      if (!formData.description.trim()) {
+        throw new Error('Description is required');
+      }
+      
+      if (!formData.category) {
+        throw new Error('Category is required');
+      }
+      
+      if (!formData.service_type) {
+        throw new Error('Service type is required');
+      }
+
       const serviceData: CreateServiceData = {
         ...formData,
         base_price: formData.base_price ? parseFloat(formData.base_price) : undefined,
@@ -131,38 +192,26 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
         console.log('Service created successfully:', newService);
         
         // Reset form and close modal
-        setFormData({
-          service_name: '',
-          description: '',
-          category: '',
-          service_type: '',
-          base_price: '',
-          has_flexible_pricing: false,
-          is_available: true,
-          availability_status: 'available',
-          contact_info: '',
-          location: '',
-          supports_booking: false,
-          supports_ordering: false,
-          supports_walk_in: false,
-          requires_contact: false
-        });
-        setSelectedImage(null);
-        setImagePreview(null);
-        
+        resetForm();
         onProductAdded();
         onClose();
       } else {
-        console.log('createService returned null - service creation failed');
+        throw new Error('Service creation failed - no response received');
       }
     } catch (error) {
       console.error('Error creating service:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create service';
-      console.error('Error message:', errorMessage);
-      alert(errorMessage);
+      setError(errorMessage);
     } finally {
       console.log('Form submission finally block - setting isSubmitting to false');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      resetForm();
+      onClose();
     }
   };
 
@@ -183,12 +232,24 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <span className="text-red-800 font-medium">Error</span>
+            </div>
+            <p className="text-red-700 mt-1">{error}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -204,7 +265,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                 value={formData.service_name}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white transition-all duration-200"
                 placeholder="e.g., Espresso, Haircut, Printing"
               />
             </div>
@@ -218,7 +279,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                 value={formData.category}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 focus:bg-white transition-all duration-200"
               >
                 <option value="">Select Category</option>
                 {CATEGORY_CHOICES.map(category => (
@@ -240,7 +301,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
               onChange={handleInputChange}
               required
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white transition-all duration-200"
               placeholder="Describe your service in detail..."
             />
           </div>
@@ -267,9 +328,9 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-purple-400 transition-colors">
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-purple-400 hover:bg-purple-50 transition-all duration-200">
                   <ImageIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600 mb-2">Upload a service image</p>
+                  <p className="text-gray-600 mb-2 font-medium">Upload a service image</p>
                   <p className="text-sm text-gray-500 mb-4">PNG, JPG up to 5MB</p>
                   <input
                     type="file"
@@ -280,7 +341,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   />
                   <label
                     htmlFor="service-image"
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors cursor-pointer"
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-purple-800 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                   >
                     Choose Image
                   </label>
@@ -300,7 +361,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                 value={formData.service_type}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 focus:bg-white transition-all duration-200"
               >
                 <option value="">Select Service Type</option>
                 {SERVICE_TYPE_CHOICES.map(type => (
@@ -324,7 +385,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   onChange={handleInputChange}
                   step="0.01"
                   min="0"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white transition-all duration-200"
                   placeholder="0.00"
                 />
               </div>
@@ -340,27 +401,27 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.supports_booking}
-                  onChange={() => handleCheckboxChange('supports_booking')}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  checked={formData.can_book}
+                  onChange={() => handleCheckboxChange('can_book')}
+                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
                 />
                 <span className="text-sm text-gray-700">Booking</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.supports_ordering}
-                  onChange={() => handleCheckboxChange('supports_ordering')}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  checked={formData.can_order}
+                  onChange={() => handleCheckboxChange('can_order')}
+                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
                 />
                 <span className="text-sm text-gray-700">Ordering</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.supports_walk_in}
-                  onChange={() => handleCheckboxChange('supports_walk_in')}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  checked={formData.can_walk_in}
+                  onChange={() => handleCheckboxChange('can_walk_in')}
+                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
                 />
                 <span className="text-sm text-gray-700">Walk-in</span>
               </label>
@@ -369,7 +430,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   type="checkbox"
                   checked={formData.requires_contact}
                   onChange={() => handleCheckboxChange('requires_contact')}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
                 />
                 <span className="text-sm text-gray-700">Contact</span>
               </label>
@@ -389,7 +450,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   name="contact_info"
                   value={formData.contact_info}
                   onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white transition-all duration-200"
                   placeholder="WhatsApp, phone, etc."
                 />
               </div>
@@ -406,7 +467,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white transition-all duration-200"
                   placeholder="Campus location or delivery area"
                 />
               </div>
@@ -423,7 +484,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                 name="availability_status"
                 value={formData.availability_status}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 text-gray-900 focus:bg-white transition-all duration-200"
               >
                 {AVAILABILITY_CHOICES.map(status => (
                   <option key={status.value} value={status.value}>
@@ -439,7 +500,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                   type="checkbox"
                   checked={formData.is_available}
                   onChange={() => handleCheckboxChange('is_available')}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
                 />
                 <span className="text-sm text-gray-700">Service is currently available</span>
               </label>
@@ -450,15 +511,16 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
           <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
             <button
               type="button"
-              onClick={onClose}
-              className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               {isSubmitting ? (
                 <>

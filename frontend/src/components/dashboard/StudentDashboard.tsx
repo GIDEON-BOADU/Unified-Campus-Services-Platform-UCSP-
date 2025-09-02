@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { studentService } from '../../services/student';
 import { StudentOrderManagement } from './StudentOrderManagement';
 import { StudentBookingManagement } from './StudentBookingManagement';
 import { StudentReviewManagement } from './StudentReviewManagement';
@@ -37,7 +38,7 @@ interface NavItem {
 export const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<NavigationSection>('overview');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768); // Start closed on mobile
   const [stats, setStats] = useState({
     totalOrders: 0,
     activeBookings: 0,
@@ -46,6 +47,66 @@ export const StudentDashboard: React.FC = () => {
     averageRating: 0,
     totalReviews: 0
   });
+
+  // Fetch student stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const studentStats = await studentService.getStudentStats();
+        setStats(studentStats);
+      } catch (error) {
+        console.error('Error fetching student stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Handle window resize for sidebar behavior
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(true); // Always open on desktop
+      } else {
+        setIsSidebarOpen(false); // Always closed on mobile
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle touch gestures for mobile sidebar
+  useEffect(() => {
+    let startX = 0;
+    let currentX = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      currentX = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = () => {
+      const diffX = startX - currentX;
+      // Swipe left to close sidebar (only on mobile when sidebar is open)
+      if (diffX > 50 && isSidebarOpen && window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isSidebarOpen]);
 
   // Navigation items
   const navigationItems: NavItem[] = [
@@ -331,8 +392,25 @@ export const StudentDashboard: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          style={{ touchAction: 'none' }}
+        />
+      )}
+      
       {/* Sidebar */}
-      <div className={`${isSidebarOpen ? 'w-80' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0`}>
+      <div className={`${
+        isSidebarOpen 
+          ? 'w-80' 
+          : 'w-20'
+        } ${
+          isSidebarOpen 
+            ? 'fixed md:relative inset-y-0 left-0 z-50 md:z-auto' 
+            : 'relative'
+        } bg-white border-r border-gray-200 transition-all duration-300 flex-shrink-0 shadow-lg md:shadow-none`}>
         {/* Sidebar Header */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -347,30 +425,49 @@ export const StudentDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto relative group">
                 <Package className="w-6 h-6 text-white" />
+                {/* Mobile hint */}
+                <div className="md:hidden absolute -right-1 -top-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
               </div>
             )}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors md:block"
             >
               {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
+            
+            {/* Mobile close button - more prominent */}
+            {isSidebarOpen && (
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden absolute top-4 right-4 p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-120px)]">
           {navigationItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left group ${
+              onClick={() => {
+                setActiveSection(item.id);
+                // Close sidebar on mobile after navigation
+                if (window.innerWidth < 768) {
+                  setIsSidebarOpen(false);
+                }
+              }}
+              className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 text-left group touch-manipulation ${
                 activeSection === item.id
                   ? 'bg-green-50 text-green-700 border border-green-200'
                   : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
               }`}
+              title={!isSidebarOpen ? item.label : undefined}
             >
               <div className={`flex-shrink-0 ${
                 activeSection === item.id ? 'text-green-600' : 'text-gray-500 group-hover:text-gray-700'
@@ -402,7 +499,28 @@ export const StudentDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <div className="pt-4 px-8 pb-8">
+        {/* Mobile Header with Menu Button */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors active:scale-95"
+            >
+              <Menu className="w-6 h-6 text-gray-600" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-semibold text-gray-900">Student Hub</span>
+            </div>
+            <div className="w-8 h-8"></div> {/* Spacer for centering */}
+          </div>
+        </div>
+        
+        <div className="pt-20 md:pt-20 px-4 md:px-8 pb-8">
+          {/* Mobile spacing adjustment */}
+          <div className="md:hidden h-4"></div>
           {renderSection()}
         </div>
       </div>

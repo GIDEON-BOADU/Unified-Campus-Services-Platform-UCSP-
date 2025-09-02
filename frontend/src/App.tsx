@@ -2,8 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { TokenStatus } from './components/common/TokenStatus';
-import { TokenExpiryAlert } from './components/common/TokenExpiryAlert';
+import { SessionStatusIndicator } from './components/common/SessionStatusIndicator';
+import { SessionTest } from './components/common/SessionTest';
 import { HomePage } from './pages/HomePage';
 import { Dashboard } from './pages/Dashboard';
 import { AdminBusinessManagement } from './pages/AdminBusinessManagement';
@@ -81,9 +81,9 @@ function App() {
           } />
         </Routes>
         
-        {/* Token expiry countdown and alerts */}
-        <TokenStatus />
-        <TokenExpiryAlert />
+        {/* Background session management */}
+        <SessionStatusIndicator />
+        {process.env.NODE_ENV === 'development' && <SessionTest />}
       </div>
     </Router>
     </AuthProvider>

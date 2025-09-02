@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { Header } from '../components/common/Header';
 import { Footer } from '../components/common/Footer';
-// Note: Vendor application service will be implemented in future version
+import { useAuth } from '../contexts/AuthContext';
+import { VendorApplicationService, VendorApplicationData, VendorApplication } from '../services/vendorApplication';
 
 export const VendorApplicationPage: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     businessName: '',
     businessDescription: '',
@@ -21,6 +24,62 @@ export const VendorApplicationPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingApplication, setExistingApplication] = useState<VendorApplication | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check authentication and existing application on mount
+  useEffect(() => {
+    const checkApplicationStatus = async () => {
+      if (!isAuthenticated) {
+        navigate('/login', { state: { from: '/vendor-application' } });
+        return;
+      }
+
+      // Check if user is already a vendor
+      if (user?.userType === 'vendor' || user?.user_type === 'vendor') {
+        navigate('/dashboard', { 
+          state: { 
+            message: 'You are already a vendor!',
+            type: 'info'
+          } 
+        });
+        return;
+      }
+
+      // Check if user is admin (admins can't become vendors)
+      if (user?.userType === 'admin' || user?.user_type === 'admin') {
+        navigate('/dashboard', { 
+          state: { 
+            message: 'Admins cannot become vendors.',
+            type: 'error'
+          } 
+        });
+        return;
+      }
+
+      try {
+        const application = await VendorApplicationService.getMyApplication();
+        if (application) {
+          setExistingApplication(application);
+          if (application.status === 'approved') {
+            navigate('/dashboard', { 
+              state: { 
+                message: 'Your vendor application has been approved!',
+                type: 'success'
+              } 
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking application status:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkApplicationStatus();
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -28,6 +87,8 @@ export const VendorApplicationPage: React.FC = () => {
       ...prev,
       [name]: value
     }));
+    // Clear error when user starts typing
+    if (error) setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,19 +120,121 @@ export const VendorApplicationPage: React.FC = () => {
       setIsSubmitting(false);
       return;
     }
-    
+
     try {
-      // MVP: Simulate submission for now
-      // In future version, this will connect to the vendor application service
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      // Prepare data for API
+      const applicationData: VendorApplicationData = {
+        business_name: formData.businessName.trim(),
+        business_description: formData.businessDescription.trim(),
+        category: formData.category,
+        address: formData.address.trim(),
+        phone: formData.phone.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        website: formData.website.trim() || undefined,
+        experience: formData.experience.trim() || undefined,
+        reason: formData.reason.trim() || undefined
+      };
+
+      // Submit to backend
+      const response = await VendorApplicationService.submitApplication(applicationData);
+      console.log('Application submitted successfully:', response);
       
       setIsSubmitted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit application');
+    } catch (err: any) {
+      console.error('Error submitting application:', err);
+      setError(err.message || 'Failed to submit application. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show existing application status
+  if (existingApplication && existingApplication.status === 'pending') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+              <AlertCircle className="h-6 w-6 text-yellow-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Application Pending</h2>
+            <p className="text-gray-600 mb-6">
+              You already have a pending vendor application. We're currently reviewing your submission and will notify you once a decision has been made.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+              <h3 className="font-semibold text-gray-900 mb-2">Application Details:</h3>
+              <p><strong>Business Name:</strong> {existingApplication.business_name}</p>
+              <p><strong>Category:</strong> {existingApplication.category_display}</p>
+              <p><strong>Submitted:</strong> {new Date(existingApplication.submitted_at).toLocaleDateString()}</p>
+            </div>
+            <div className="space-y-3">
+              <Link
+                to="/"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Return to Home
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Show rejected application
+  if (existingApplication && existingApplication.status === 'rejected') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Application Rejected</h2>
+            <p className="text-gray-600 mb-6">
+              Your previous vendor application was not approved. You can submit a new application with updated information.
+            </p>
+            {existingApplication.notes && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-semibold text-red-900 mb-2">Feedback:</h3>
+                <p className="text-red-800">{existingApplication.notes}</p>
+              </div>
+            )}
+            <div className="space-y-3">
+              <button
+                onClick={() => setExistingApplication(null)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Submit New Application
+              </button>
+              <Link
+                to="/"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Return to Home
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (isSubmitted) {
     return (
@@ -80,9 +243,7 @@ export const VendorApplicationPage: React.FC = () => {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-white rounded-lg shadow-lg p-8 text-center">
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+              <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Application Submitted!</h2>
             <p className="text-gray-600 mb-6">
@@ -127,7 +288,10 @@ export const VendorApplicationPage: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-100 border border-red-300 rounded-md">
-              <p className="text-red-700 font-semibold">{error}</p>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-red-700 font-semibold">{error}</p>
+              </div>
             </div>
           )}
 
@@ -205,13 +369,12 @@ export const VendorApplicationPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-blue-700 mb-1">
-                    Email Address *
+                    Email Address
                   </label>
                   <input
                     type="email"
                     id="email"
                     name="email"
-                    required
                     value={formData.email}
                     onChange={handleChange}
                     className="block w-full px-4 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -220,13 +383,12 @@ export const VendorApplicationPage: React.FC = () => {
                 </div>
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-blue-700 mb-1">
-                    Phone Number *
+                    Phone Number
                   </label>
                   <input
                     type="tel"
                     id="phone"
                     name="phone"
-                    required
                     value={formData.phone}
                     onChange={handleChange}
                     className="block w-full px-4 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

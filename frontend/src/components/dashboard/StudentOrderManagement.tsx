@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { studentService } from '../../services/student';
 import { 
   Search, 
   Filter, 
@@ -40,44 +41,24 @@ export const StudentOrderManagement: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
 
-  // Mock data for MVP - will be replaced with real API calls
+  // Fetch orders from API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setOrders([
-        {
-          id: 1,
-          service: 1,
-          service_name: "Campus Coffee - Espresso",
-          customer: 1,
-          customer_name: "John Doe",
-          vendor_name: "Campus Coffee Corner",
-          quantity: 1,
-          special_instructions: "Extra hot please",
-          delivery_address: "Building A, Room 101",
-          order_status: 'pending' as OrderStatus,
-          total_amount: 3.50,
-          created_at: "2024-01-15T10:30:00Z",
-          updated_at: "2024-01-15T10:30:00Z"
-        },
-        {
-          id: 2,
-          service: 2,
-          service_name: "Study Space - Private Room",
-          customer: 1,
-          customer_name: "John Doe",
-          vendor_name: "Study Hub",
-          quantity: 1,
-          special_instructions: "Quiet area preferred",
-          delivery_address: "",
-          order_status: 'confirmed' as OrderStatus,
-          total_amount: 15.00,
-          created_at: "2024-01-14T14:00:00Z",
-          updated_at: "2024-01-14T16:00:00Z"
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const fetchedOrders = await studentService.getStudentOrders();
+        setOrders(fetchedOrders);
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+        setError('Failed to fetch orders. Please try again.');
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
   }, []);
 
   // Handle search
@@ -115,8 +96,8 @@ export const StudentOrderManagement: React.FC = () => {
   const handleCancelOrder = async (orderId: number) => {
     if (window.confirm('Are you sure you want to cancel this order?')) {
       try {
-        // TODO: Implement order cancellation API call
-        console.log('Cancelling order:', orderId);
+        setError(null);
+        await studentService.cancelOrder(orderId);
         
         // Update local state
         setOrders(prevOrders => 

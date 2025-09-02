@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit, Save, X, Trash2, Image as ImageIcon, Star, Eye } from 'lucide-react';
+import { Edit, Save, X, Trash2, Image as ImageIcon, Star, Eye, AlertCircle } from 'lucide-react';
 import { Service } from '../../hooks/useServices';
 
 interface EditableProductTileProps {
@@ -18,6 +18,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editData, setEditData] = useState({
     service_name: service.service_name,
     description: service.description,
@@ -39,11 +40,13 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
   const handleSave = async () => {
     // Basic validation
     if (!editData.service_name.trim() || !editData.description.trim()) {
-      alert('Service name and description are required');
+      setError('Service name and description are required');
       return;
     }
 
     setIsLoading(true);
+    setError(null);
+    
     try {
       const updateData: any = {
         ...editData,
@@ -61,6 +64,8 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
       setTimeout(() => setShowSuccess(false), 3000); // Hide after 3 seconds
     } catch (error) {
       console.error('Failed to update service:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update service';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -69,18 +74,34 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image file size must be less than 5MB');
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onload = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Clear error when image is selected
+      if (error) setError(null);
     }
   };
 
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    if (error) setError(null);
   };
 
   const handleCancel = () => {
@@ -102,6 +123,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
     setSelectedImage(null);
     setImagePreview(service.images || null);
     setIsEditing(false);
+    setError(null);
   };
 
   const handleDelete = async () => {
@@ -115,15 +137,33 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
         await onDelete(service.id);
       } catch (error) {
         console.error('Failed to delete service:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to delete service';
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
     }
   };
 
+  const handleInputChange = (field: string, value: any) => {
+    setEditData(prev => ({ ...prev, [field]: value }));
+    if (error) setError(null);
+  };
+
   if (isEditing) {
     return (
       <div className="border border-purple-300 rounded-2xl p-6 bg-white shadow-lg">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span className="font-medium">Error</span>
+            </div>
+            <p className="mt-1">{error}</p>
+          </div>
+        )}
+
         <div className="space-y-4">
           {/* Service Name */}
           <div>
@@ -133,7 +173,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
             <input
               type="text"
               value={editData.service_name}
-              onChange={(e) => setEditData(prev => ({ ...prev, service_name: e.target.value }))}
+              onChange={(e) => handleInputChange('service_name', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
             />
@@ -146,7 +186,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
             </label>
             <textarea
               value={editData.description}
-              onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => handleInputChange('description', e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
@@ -161,7 +201,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               </label>
               <select
                 value={editData.category || service.category}
-                onChange={(e) => setEditData(prev => ({ ...prev, category: e.target.value }))}
+                onChange={(e) => handleInputChange('category', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 <option value="food">Food & Beverages</option>
@@ -181,7 +221,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               </label>
               <select
                 value={editData.service_type || service.service_type}
-                onChange={(e) => setEditData(prev => ({ ...prev, service_type: e.target.value }))}
+                onChange={(e) => handleInputChange('service_type', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 <option value="booking">Booking Required</option>
@@ -251,23 +291,6 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
                   </label>
                 </div>
               )}
-              {!imagePreview && (
-                <div className="text-center">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                    id={`service-image-upload-${service.id}`}
-                  />
-                  <label
-                    htmlFor={`service-image-upload-${service.id}`}
-                    className="bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors cursor-pointer"
-                  >
-                    Upload New Image
-                  </label>
-                </div>
-              )}
             </div>
           </div>
 
@@ -280,7 +303,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               <input
                 type="number"
                 value={editData.base_price}
-                onChange={(e) => setEditData(prev => ({ ...prev, base_price: e.target.value }))}
+                onChange={(e) => handleInputChange('base_price', e.target.value)}
                 step="0.01"
                 min="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -292,7 +315,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               </label>
               <select
                 value={editData.availability_status}
-                onChange={(e) => setEditData(prev => ({ ...prev, availability_status: e.target.value }))}
+                onChange={(e) => handleInputChange('availability_status', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 <option value="available">Available</option>
@@ -312,7 +335,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               <input
                 type="text"
                 value={editData.contact_info}
-                onChange={(e) => setEditData(prev => ({ ...prev, contact_info: e.target.value }))}
+                onChange={(e) => handleInputChange('contact_info', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="WhatsApp, phone, etc."
               />
@@ -324,7 +347,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               <input
                 type="text"
                 value={editData.location}
-                onChange={(e) => setEditData(prev => ({ ...prev, location: e.target.value }))}
+                onChange={(e) => handleInputChange('location', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="Campus location or delivery area"
               />
@@ -341,7 +364,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
                 <input
                   type="checkbox"
                   checked={editData.supports_booking || false}
-                  onChange={(e) => setEditData(prev => ({ ...prev, supports_booking: e.target.checked }))}
+                  onChange={(e) => handleInputChange('supports_booking', e.target.checked)}
                   className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                 />
                 <span className="text-sm text-gray-700">Supports Booking</span>
@@ -350,7 +373,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
                 <input
                   type="checkbox"
                   checked={editData.supports_ordering || false}
-                  onChange={(e) => setEditData(prev => ({ ...prev, supports_ordering: e.target.checked }))}
+                  onChange={(e) => handleInputChange('supports_ordering', e.target.checked)}
                   className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                 />
                 <span className="text-sm text-gray-700">Supports Ordering</span>
@@ -359,7 +382,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
                 <input
                   type="checkbox"
                   checked={editData.supports_walk_in || false}
-                  onChange={(e) => setEditData(prev => ({ ...prev, supports_walk_in: e.target.checked }))}
+                  onChange={(e) => handleInputChange('supports_walk_in', e.target.checked)}
                   className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                 />
                 <span className="text-sm text-gray-700">Supports Walk-in</span>
@@ -368,7 +391,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
                 <input
                   type="checkbox"
                   checked={editData.requires_contact || false}
-                  onChange={(e) => setEditData(prev => ({ ...prev, requires_contact: e.target.checked }))}
+                  onChange={(e) => handleInputChange('requires_contact', e.target.checked)}
                   className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                 />
                 <span className="text-sm text-gray-700">Requires Contact</span>
@@ -382,7 +405,7 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
               type="checkbox"
               id={`available-${service.id}`}
               checked={editData.is_available}
-              onChange={(e) => setEditData(prev => ({ ...prev, is_available: e.target.checked }))}
+              onChange={(e) => handleInputChange('is_available', e.target.checked)}
               className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
             />
             <label htmlFor={`available-${service.id}`} className="text-sm font-medium text-gray-700">
@@ -430,6 +453,17 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
           ✓ Service updated successfully!
         </div>
       )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium">Error</span>
+          </div>
+          <p className="mt-1">{error}</p>
+        </div>
+      )}
       
       {/* Header with Edit/Delete buttons */}
       <div className="flex justify-between items-start mb-4">
@@ -453,7 +487,8 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
           </button>
           <button
             onClick={handleDelete}
-            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            disabled={isLoading}
+            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
             title="Delete Service"
           >
             <Trash2 className="w-4 h-4" />
@@ -468,7 +503,16 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
             src={service.images}
             alt={service.service_name}
             className="w-full h-32 object-cover rounded-xl"
+            onError={(e) => {
+              // Fallback if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.nextElementSibling?.classList.remove('hidden');
+            }}
           />
+          <div className="hidden w-full h-32 bg-gray-100 rounded-xl flex items-center justify-center">
+            <ImageIcon className="w-8 h-8 text-gray-400" />
+          </div>
         </div>
       ) : (
         <div className="mb-4 w-full h-32 bg-gray-100 rounded-xl flex items-center justify-center">

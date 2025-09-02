@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { studentService, Booking } from '../../services/student';
 import { 
   Search, 
   Filter, 
@@ -23,19 +24,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
-// Booking interface based on backend model
-interface Booking {
-  id: number;
-  service: number;
-  service_name: string;
-  student: number;
-  student_name: string;
-  vendor_name: string;
-  booking_date: string;
-  booking_status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  notes?: string;
-  created_at: string;
-}
+
 
 export const StudentBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -50,50 +39,24 @@ export const StudentBookingManagement: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [expandedBooking, setExpandedBooking] = useState<number | null>(null);
 
-  // Mock data for MVP - will be replaced with real API calls
+  // Fetch bookings from API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setBookings([
-        {
-          id: 1,
-          service: 1,
-          service_name: "Study Space - Private Room",
-          student: 1,
-          student_name: "John Doe",
-          vendor_name: "Study Hub",
-          booking_date: "2024-01-20T14:00:00Z",
-          booking_status: 'confirmed',
-          notes: "Quiet area preferred, need power outlet",
-          created_at: "2024-01-15T10:30:00Z"
-        },
-        {
-          id: 2,
-          service: 2,
-          service_name: "Fitness Center - Personal Training",
-          student: 1,
-          student_name: "John Doe",
-          vendor_name: "Campus Fitness",
-          booking_date: "2024-01-22T16:00:00Z",
-          booking_status: 'pending',
-          notes: "First session, beginner level",
-          created_at: "2024-01-16T09:15:00Z"
-        },
-        {
-          id: 3,
-          service: 3,
-          service_name: "Computer Lab - Extended Hours",
-          student: 1,
-          student_name: "John Doe",
-          vendor_name: "Tech Center",
-          booking_date: "2024-01-18T20:00:00Z",
-          booking_status: 'completed',
-          notes: "Need access to design software",
-          created_at: "2024-01-14T14:00:00Z"
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    const fetchBookings = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const fetchedBookings = await studentService.getStudentBookings();
+        setBookings(fetchedBookings);
+      } catch (err) {
+        console.error('Error fetching bookings:', err);
+        setError('Failed to fetch bookings. Please try again.');
+        setBookings([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBookings();
   }, []);
 
   // Handle search

@@ -36,9 +36,9 @@ export interface CreateServiceData {
   availability_status?: string;
   contact_info?: string;
   location?: string;
-  supports_booking?: boolean;
-  supports_ordering?: boolean;
-  supports_walk_in?: boolean;
+  can_book?: boolean;
+  can_order?: boolean;
+  can_walk_in?: boolean;
   requires_contact?: boolean;
   image?: File | null;
 }
@@ -90,8 +90,7 @@ export const useServices = () => {
     if (!user) return null;
 
     console.log('createService called with:', serviceData);
-    // Don't set global loading state for individual service creation
-    // setError(null);
+    setError(null);
 
     try {
       // Check if we have an image to upload
@@ -104,14 +103,37 @@ export const useServices = () => {
         // Use FormData for image uploads
         const formData = new FormData();
         
-        // Add all text fields
-        Object.keys(serviceData).forEach(key => {
-          if (key !== 'image' && serviceData[key as keyof CreateServiceData] !== undefined) {
-            formData.append(key, String(serviceData[key as keyof CreateServiceData]));
+        // Map frontend fields to backend fields
+        const fieldMapping = {
+          service_name: 'service_name',
+          description: 'description',
+          category: 'category',
+          service_type: 'service_type',
+          base_price: 'base_price',
+          has_flexible_pricing: 'has_flexible_pricing',
+          is_available: 'is_available',
+          availability_status: 'availability_status',
+          contact_info: 'contact_info',
+          location: 'location',
+          supports_booking: 'supports_booking',
+          supports_ordering: 'supports_ordering',
+          supports_walk_in: 'supports_walk_in',
+          requires_contact: 'requires_contact'
+        };
+        
+        // Add all text fields with proper mapping
+        Object.entries(fieldMapping).forEach(([frontendKey, backendKey]) => {
+          if (serviceData[frontendKey as keyof CreateServiceData] !== undefined) {
+            const value = serviceData[frontendKey as keyof CreateServiceData];
+            if (typeof value === 'boolean') {
+              formData.append(backendKey, value.toString());
+            } else if (value !== null && value !== undefined) {
+              formData.append(backendKey, String(value));
+            }
           }
         });
         
-        // Add the image file
+        // Add the image file - backend expects 'images' field
         if (serviceData.image) {
           formData.append('images', serviceData.image);
         }
@@ -141,7 +163,26 @@ export const useServices = () => {
       } else {
         // Use JSON for text-only data
         const { image, ...jsonData } = serviceData;
-        console.log('Sending JSON data:', jsonData);
+        
+        // Map frontend fields to backend fields
+        const mappedData = {
+          service_name: jsonData.service_name,
+          description: jsonData.description,
+          category: jsonData.category,
+          service_type: jsonData.service_type,
+          base_price: jsonData.base_price,
+          has_flexible_pricing: jsonData.has_flexible_pricing,
+          is_available: jsonData.is_available,
+          availability_status: jsonData.availability_status,
+          contact_info: jsonData.contact_info,
+          location: jsonData.location,
+          supports_booking: jsonData.can_book,
+          supports_ordering: jsonData.can_order,
+          supports_walk_in: jsonData.can_walk_in,
+          requires_contact: jsonData.requires_contact
+        };
+        
+        console.log('Sending JSON data:', mappedData);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
@@ -152,7 +193,7 @@ export const useServices = () => {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
             },
-            body: JSON.stringify(jsonData),
+            body: JSON.stringify(mappedData),
             signal: controller.signal
           });
           clearTimeout(timeoutId);
@@ -170,7 +211,7 @@ export const useServices = () => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Response error:', errorData);
-        throw new Error(errorData.message || 'Failed to create service');
+        throw new Error(errorData.message || errorData.detail || 'Failed to create service');
       }
 
       const newService = await response.json();
@@ -182,11 +223,9 @@ export const useServices = () => {
       return newService;
     } catch (err) {
       console.error('Error in createService:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create service');
-      return null;
-    } finally {
-      console.log('createService finally block - not setting isLoading');
-      // Don't set global loading state for individual service creation
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create service';
+      setError(errorMessage);
+      throw new Error(errorMessage); // Re-throw for component handling
     }
   }, [user]);
 
@@ -208,14 +247,37 @@ export const useServices = () => {
         // Use FormData for image uploads
         const formData = new FormData();
         
-        // Add all text fields
-        Object.keys(serviceData).forEach(key => {
-          if (key !== 'image' && serviceData[key as keyof CreateServiceData] !== undefined) {
-            formData.append(key, String(serviceData[key as keyof CreateServiceData]));
+        // Map frontend fields to backend fields
+        const fieldMapping = {
+          service_name: 'service_name',
+          description: 'description',
+          category: 'category',
+          service_type: 'service_type',
+          base_price: 'base_price',
+          has_flexible_pricing: 'has_flexible_pricing',
+          is_available: 'is_available',
+          availability_status: 'availability_status',
+          contact_info: 'contact_info',
+          location: 'location',
+          supports_booking: 'supports_booking',
+          supports_ordering: 'supports_ordering',
+          supports_walk_in: 'supports_walk_in',
+          requires_contact: 'requires_contact'
+        };
+        
+        // Add all text fields with proper mapping
+        Object.entries(fieldMapping).forEach(([frontendKey, backendKey]) => {
+          if (serviceData[frontendKey as keyof CreateServiceData] !== undefined) {
+            const value = serviceData[frontendKey as keyof CreateServiceData];
+            if (typeof value === 'boolean') {
+              formData.append(backendKey, value.toString());
+            } else if (value !== null && value !== undefined) {
+              formData.append(backendKey, String(value));
+            }
           }
         });
         
-        // Add the image file
+        // Add the image file - backend expects 'images' field
         if (serviceData.image) {
           formData.append('images', serviceData.image);
         }
@@ -232,20 +294,39 @@ export const useServices = () => {
       } else {
         // Use JSON for text-only data
         const { image, ...jsonData } = serviceData;
-        console.log('updateService: Sending JSON data:', jsonData);
+        
+        // Map frontend fields to backend fields
+        const mappedData = {
+          service_name: jsonData.service_name,
+          description: jsonData.description,
+          category: jsonData.category,
+          service_type: jsonData.service_type,
+          base_price: jsonData.base_price,
+          has_flexible_pricing: jsonData.has_flexible_pricing,
+          is_available: jsonData.is_available,
+          availability_status: jsonData.availability_status,
+          contact_info: jsonData.contact_info,
+          location: jsonData.location,
+          supports_booking: jsonData.can_book,
+          supports_ordering: jsonData.can_order,
+          supports_walk_in: jsonData.can_walk_in,
+          requires_contact: jsonData.requires_contact
+        };
+        
+        console.log('updateService: Sending JSON data:', mappedData);
         response = await fetch(`http://127.0.0.1:8000/api/services/${serviceId}/`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
-          body: JSON.stringify(jsonData)
+          body: JSON.stringify(mappedData)
         });
       }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update service');
+        throw new Error(errorData.message || errorData.detail || 'Failed to update service');
       }
 
       const updatedService = await response.json();
@@ -257,9 +338,10 @@ export const useServices = () => {
       
       return updatedService;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update service');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update service';
+      setError(errorMessage);
       console.error('Error updating service:', err);
-      return null;
+      throw new Error(errorMessage); // Re-throw for component handling
     } finally {
       setIsLoading(false);
     }
@@ -289,9 +371,10 @@ export const useServices = () => {
       
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete service');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete service';
+      setError(errorMessage);
       console.error('Error deleting service:', err);
-      return false;
+      throw new Error(errorMessage); // Re-throw for component handling
     } finally {
       setIsLoading(false);
     }
@@ -328,9 +411,10 @@ export const useServices = () => {
       await fetchServices();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit rating');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit rating';
+      setError(errorMessage);
       console.error('Error rating service:', err);
-      return false;
+      throw new Error(errorMessage); // Re-throw for component handling
     } finally {
       setIsLoading(false);
     }

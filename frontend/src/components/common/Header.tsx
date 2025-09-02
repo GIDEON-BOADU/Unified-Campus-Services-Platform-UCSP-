@@ -67,7 +67,7 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-b border-gray-200 shadow-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-b border-gray-200 shadow-sm">
       <div className="container mx-auto px-6">
         {/* Top bar with location and contact */}
         <div className="hidden md:flex justify-between items-center py-3 text-sm border-b border-gray-100">

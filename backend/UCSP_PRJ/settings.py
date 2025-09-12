@@ -38,7 +38,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-s4i1q+yf1^7syhs!g2dfafkky9
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,172.20.10.3').split(',')
 
 
 # Application definition
@@ -75,7 +75,7 @@ MIDDLEWARE = [
 ]
 
 # CSRF Exemptions for API endpoints
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://172.20.10.3:5173', 'http://172.20.10.3:3000']
 CSRF_COOKIE_SECURE = False
 CSRF_COOKIE_HTTPONLY = False
 
@@ -174,9 +174,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'users.User'
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://172.20.10.3:5173').split(',')
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://172.20.10.3:5173,http://172.20.10.3:3000').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+# Allow all origins in development (be careful in production)
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',

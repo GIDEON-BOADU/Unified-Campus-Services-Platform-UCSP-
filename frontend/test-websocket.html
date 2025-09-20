@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .message { background-color: #d1ecf1; color: #0c5460; padding: 10px; margin: 5px 0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status" class="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        // Test token - you'll need to replace this with a real token from localStorage
+        const token = localStorage.getItem('accessToken') || 'test-token';
+        
+        function addMessage(text, type = 'message') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = text;
+            messages.appendChild(messageDiv);
+        }
+        
+        // Test both user and vendor endpoints
+        const endpoints = [
+            { name: 'User Notifications', url: `ws://localhost:8000/ws/notifications/?token=${token}` },
+            { name: 'Vendor Notifications', url: `ws://localhost:8000/ws/vendor-notifications/?token=${token}` }
+        ];
+        
+        let connectedCount = 0;
+        
+        endpoints.forEach((endpoint, index) => {
+            addMessage(`Testing ${endpoint.name}...`);
+            
+            const ws = new WebSocket(endpoint.url);
+            
+            ws.onopen = function(event) {
+                connectedCount++;
+                addMessage(`✅ ${endpoint.name} connected!`);
+                status.textContent = `Connected to ${connectedCount}/${endpoints.length} endpoints`;
+                status.className = 'status connected';
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addMessage(`📨 ${endpoint.name}: ${data.type} - ${JSON.stringify(data)}`);
+            };
+            
+            ws.onclose = function(event) {
+                addMessage(`❌ ${endpoint.name} disconnected: ${event.code} - ${event.reason}`);
+                if (connectedCount === 0) {
+                    status.textContent = 'Disconnected from all endpoints';
+                    status.className = 'status disconnected';
+                }
+            };
+            
+            ws.onerror = function(error) {
+                addMessage(`🚨 ${endpoint.name} error: ${error}`);
+                status.textContent = 'Error occurred';
+                status.className = 'status error';
+            };
+        });
+        
+        // Test sending a message after 3 seconds
+        setTimeout(() => {
+            addMessage('Testing message sending...');
+            // This would normally be done through the WebSocket service
+        }, 3000);
+    </script>
+</body>
+</html>

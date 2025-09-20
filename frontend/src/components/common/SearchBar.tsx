@@ -36,6 +36,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           <Search className="h-5 w-5 text-gray-400" />
         </div>
         <input
+          id="search-bar-input"
+          name="search"
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -43,6 +45,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-500"
+          aria-label={placeholder}
         />
         {value && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center">

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test - UCSP Notifications</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .message { background-color: #d1ecf1; color: #0c5460; padding: 10px; margin: 5px 0; border-radius: 3px; }
+        .test-button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .test-button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔔 WebSocket Notification Test</h1>
+    <div id="status" class="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <button class="test-button" onclick="testConnection()">Test Connection</button>
+    <button class="test-button" onclick="sendTestNotification()">Send Test Notification</button>
+    <button class="test-button" onclick="clearMessages()">Clear Messages</button>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        let ws = null;
+        let isConnected = false;
+        
+        function addMessage(text, type = 'message') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        function clearMessages() {
+            messages.innerHTML = '';
+        }
+        
+        function testConnection() {
+            addMessage('Testing WebSocket connection...');
+            
+            // Try to get token from localStorage (if user is logged in)
+            const token = localStorage.getItem('accessToken') || 'test-token';
+            addMessage(`Using token: ${token.substring(0, 20)}...`);
+            
+            // Test both endpoints
+            const endpoints = [
+                { name: 'User Notifications', url: `ws://localhost:8000/ws/notifications/?token=${token}` },
+                { name: 'Vendor Notifications', url: `ws://localhost:8000/ws/vendor-notifications/?token=${token}` }
+            ];
+            
+            endpoints.forEach((endpoint, index) => {
+                addMessage(`Testing ${endpoint.name}...`);
+                
+                const testWs = new WebSocket(endpoint.url);
+                
+                testWs.onopen = function(event) {
+                    addMessage(`✅ ${endpoint.name} connected successfully!`);
+                    testWs.close();
+                };
+                
+                testWs.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    addMessage(`📨 ${endpoint.name}: ${data.type} - ${JSON.stringify(data)}`);
+                };
+                
+                testWs.onclose = function(event) {
+                    if (event.code === 1000) {
+                        addMessage(`✅ ${endpoint.name} closed normally`);
+                    } else {
+                        addMessage(`❌ ${endpoint.name} closed with code ${event.code}: ${event.reason}`);
+                    }
+                };
+                
+                testWs.onerror = function(error) {
+                    addMessage(`🚨 ${endpoint.name} error: ${error}`);
+                };
+            });
+        }
+        
+        function sendTestNotification() {
+            if (!isConnected) {
+                addMessage('❌ Not connected to WebSocket. Please test connection first.');
+                return;
+            }
+            
+            addMessage('Sending test notification...');
+            // This would normally be done through the backend API
+            fetch('http://localhost:8000/api/notifications/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken') || 'test-token'}`
+                },
+                body: JSON.stringify({
+                    title: 'Test Notification',
+                    message: 'This is a test notification from the browser',
+                    notification_type: 'test',
+                    priority: 'medium'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                addMessage(`✅ Test notification sent: ${JSON.stringify(data)}`);
+            })
+            .catch(error => {
+                addMessage(`❌ Error sending notification: ${error}`);
+            });
+        }
+        
+        // Auto-test connection on page load
+        window.onload = function() {
+            addMessage('Page loaded. Click "Test Connection" to test WebSocket connectivity.');
+        };
+    </script>
+</body>
+</html>

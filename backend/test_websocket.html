@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        // Test token (you'll need to replace this with a real token)
+        const token = 'your-jwt-token-here';
+        
+        const ws = new WebSocket(`ws://localhost:8000/ws/notifications/?token=${token}`);
+        
+        ws.onopen = function(event) {
+            status.textContent = 'Connected!';
+            status.style.color = 'green';
+            console.log('WebSocket connected');
+        };
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log('Received message:', data);
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = `Type: ${data.type}, Message: ${JSON.stringify(data)}`;
+            messageDiv.style.border = '1px solid #ccc';
+            messageDiv.style.padding = '10px';
+            messageDiv.style.margin = '5px';
+            messages.appendChild(messageDiv);
+        };
+        
+        ws.onclose = function(event) {
+            status.textContent = `Disconnected: ${event.code} - ${event.reason}`;
+            status.style.color = 'red';
+            console.log('WebSocket disconnected:', event.code, event.reason);
+        };
+        
+        ws.onerror = function(error) {
+            status.textContent = 'Error occurred';
+            status.style.color = 'red';
+            console.error('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html>

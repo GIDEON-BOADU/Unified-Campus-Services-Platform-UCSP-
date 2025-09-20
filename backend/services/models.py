@@ -87,6 +87,45 @@ class VendorProfile(models.Model):
         help_text="Whether the business is currently active"
     )
     
+    # Mobile Money fields
+    mtn_momo_number = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        help_text="MTN Mobile Money number"
+    )
+    vodafone_cash_number = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        help_text="Vodafone Cash number"
+    )
+    airtel_money_number = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        help_text="Airtel Money number"
+    )
+    telecel_cash_number = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        help_text="Telecel Cash number"
+    )
+    preferred_payment_method = models.CharField(
+        max_length=20,
+        choices=[
+            ('mtn_momo', 'MTN Mobile Money'),
+            ('vodafone_cash', 'Vodafone Cash'),
+            ('airtel_money', 'Airtel Money'),
+            ('telecel_cash', 'Telecel Cash'),
+            ('bank_transfer', 'Bank Transfer'),
+            ('cash', 'Cash Payment'),
+        ],
+        default='mtn_momo',
+        help_text="Preferred payment method"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -168,6 +207,7 @@ class Service(models.Model):
         ("transport", "Transportation"),  # Taxi, delivery services
         ("health", "Health & Wellness"),  # Medical, fitness services
         ("entertainment", "Entertainment"),  # Gaming, events, recreation
+        ("gym", "Gym & Fitness"),  # Personal training, gym services
         ("other", "Other Services"),  # Miscellaneous services
     )
 
@@ -316,11 +356,17 @@ class Service(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override save method to add validation.
+        Override save method to add validation and set support flags.
 
         Raises:
             ValidationError: If validation fails
         """
+        # Set support flags based on service_type
+        self.supports_booking = self.service_type == 'booking'
+        self.supports_ordering = self.service_type == 'ordering'
+        self.supports_walk_in = self.service_type == 'walk_in'
+        self.requires_contact = self.service_type == 'contact'
+        
         self.clean()
         super().save(*args, **kwargs)
 
@@ -870,3 +916,163 @@ class Review(models.Model):
         ]
 
 
+class PrintRequest(models.Model):
+    """
+    Print request model for printing services.
+    
+    This model handles print requests submitted by students for printing services.
+    It stores the file to be printed along with printing specifications.
+    
+    Attributes:
+        service: The printing service
+        student: The student making the request
+        file: The document to print
+        copies: Number of copies requested
+        paper_size: Size of paper (A4, A3, etc.)
+        color_mode: Color or black & white
+        special_instructions: Any special requirements
+        contact_phone: Student's contact phone
+        pickup_location: Where to pick up the printed documents
+        status: Current status of the print request
+        created_at: Timestamp when request was created
+    """
+    
+    # Status choices
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('ready', 'Ready for Pickup'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    # Paper size choices
+    PAPER_SIZE_CHOICES = [
+        ('A4', 'A4'),
+        ('A3', 'A3'),
+        ('Letter', 'Letter'),
+        ('Legal', 'Legal'),
+    ]
+    
+    # Color mode choices
+    COLOR_MODE_CHOICES = [
+        ('black_white', 'Black & White'),
+        ('color', 'Color'),
+    ]
+    
+    # Relationships
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name='print_requests',
+        help_text="The printing service"
+    )
+    student = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        related_name='print_requests',
+        help_text="The student making the request"
+    )
+    
+    # File and printing details
+    file = models.FileField(
+        upload_to='print_requests/%Y/%m/%d/',
+        help_text="The document to print"
+    )
+    copies = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of copies requested"
+    )
+    paper_size = models.CharField(
+        max_length=10,
+        choices=PAPER_SIZE_CHOICES,
+        default='A4',
+        help_text="Size of paper"
+    )
+    color_mode = models.CharField(
+        max_length=20,
+        choices=COLOR_MODE_CHOICES,
+        default='black_white',
+        help_text="Color or black & white printing"
+    )
+    special_instructions = models.TextField(
+        blank=True,
+        help_text="Any special printing requirements"
+    )
+    contact_phone = models.CharField(
+        max_length=15,
+        blank=True,
+        help_text="Student's contact phone number"
+    )
+    pickup_location = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Where to pick up the printed documents"
+    )
+    
+    # Status and metadata
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        help_text="Current status of the print request"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when request was created"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp when request was last updated"
+    )
+    
+    def __str__(self):
+        """
+        String representation of the print request.
+        
+        Returns:
+            str: Print request details in readable format
+        """
+        student_name = getattr(self.student, "username", "Unknown Student")
+        service_name = getattr(self.service, "service_name", "Unknown Service")
+        return f"Print request by {student_name} for {service_name} ({self.status})"
+    
+    def clean(self):
+        """
+        Validate print request data.
+        
+        Raises:
+            ValidationError: If validation rules are violated
+        """
+        # Validate student type
+        if getattr(self.student, "user_type", None) != "student":
+            raise ValidationError("Only students can make print requests.")
+        
+        # Validate service type
+        if self.service.category != "printing":
+            raise ValidationError("Print requests can only be made for printing services.")
+        
+        # Validate copies
+        if self.copies <= 0:
+            raise ValidationError("Number of copies must be greater than zero.")
+        
+        # Validate file size (max 10MB)
+        if hasattr(self.file, 'size') and self.file.size > 10 * 1024 * 1024:
+            raise ValidationError("File size must be less than 10MB.")
+    
+    def save(self, *args, **kwargs):
+        """
+        Override save method to add validation.
+        
+        Raises:
+            ValidationError: If validation fails
+        """
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        """Meta options for the PrintRequest model."""
+        
+        verbose_name = "Print Request"
+        verbose_name_plural = "Print Requests"
+        ordering = ["-created_at"]  # Most recent first

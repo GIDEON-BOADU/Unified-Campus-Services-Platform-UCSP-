@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Star, MapPin, Phone, MessageCircle, Clock, Package, DollarSign } from 'lucide-react';
+import { X, Star, MapPin, Phone, MessageCircle, Clock, Package } from 'lucide-react';
 import { Service } from '../../hooks/useServices';
 
 interface ServiceDetailModalProps {
@@ -94,7 +94,19 @@ export const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({
                 src={service.images}
                 alt={service.service_name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  console.log('ServiceDetailModal: Image failed to load:', service.images);
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+                onLoad={() => {
+                  console.log('ServiceDetailModal: Image loaded successfully:', service.images);
+                }}
               />
+              <div className="hidden w-full h-64 bg-gray-100 rounded-2xl flex items-center justify-center">
+                <Package className="w-16 h-16 text-gray-400" />
+              </div>
             </div>
           ) : (
             <div className="w-full h-64 bg-gray-100 rounded-2xl flex items-center justify-center">
@@ -279,20 +291,20 @@ export const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({
               Close
             </button>
             
-            {/* Add action buttons based on service type */}
-            {service.can_book && (
+            {/* Add action buttons based on service type - only for students */}
+            {isStudent && service.can_book && (
               <button className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors">
                 Book Now
               </button>
             )}
             
-            {service.can_order && (
+            {isStudent && service.can_order && (
               <button className="px-6 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors">
                 Order Now
               </button>
             )}
             
-            {service.requires_contact && (
+            {isStudent && service.requires_contact && (
               <button className="px-6 py-3 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors">
                 Contact Vendor
               </button>

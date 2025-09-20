@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Package, DollarSign, MapPin, MessageCircle, Clock, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useServices, CreateServiceData } from '../../hooks/useServices';
@@ -89,6 +89,19 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     // Clear error when user starts typing
     if (error) setError(null);
   };
+
+  // Auto-set capability fields based on service type
+  React.useEffect(() => {
+    if (formData.service_type) {
+      setFormData(prev => ({
+        ...prev,
+        can_book: formData.service_type === 'booking',
+        can_order: formData.service_type === 'ordering',
+        can_walk_in: formData.service_type === 'walk_in',
+        requires_contact: formData.service_type === 'contact'
+      }));
+    }
+  }, [formData.service_type]);
 
   const handleCheckboxChange = (name: keyof ProductFormData) => {
     setFormData(prev => ({
@@ -256,10 +269,11 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="service-name" className="block text-sm font-medium text-gray-700 mb-2">
                 Service Name *
               </label>
               <input
+                id="service-name"
                 type="text"
                 name="service_name"
                 value={formData.service_name}
@@ -397,42 +411,57 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Service Capabilities
             </label>
+            <p className="text-sm text-gray-600 mb-4">
+              These capabilities are automatically set based on your service type. You can manually adjust them if needed.
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${formData.service_type === 'booking' ? 'cursor-default' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={formData.can_book}
                   onChange={() => handleCheckboxChange('can_book')}
-                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
+                  disabled={formData.service_type === 'booking'}
+                  className={`w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200 ${formData.service_type === 'booking' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
-                <span className="text-sm text-gray-700">Booking</span>
+                <span className={`text-sm ${formData.service_type === 'booking' ? 'text-gray-500' : 'text-gray-700'}`}>
+                  Booking {formData.service_type === 'booking' && '(Auto-enabled)'}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${formData.service_type === 'ordering' ? 'cursor-default' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={formData.can_order}
                   onChange={() => handleCheckboxChange('can_order')}
-                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
+                  disabled={formData.service_type === 'ordering'}
+                  className={`w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200 ${formData.service_type === 'ordering' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
-                <span className="text-sm text-gray-700">Ordering</span>
+                <span className={`text-sm ${formData.service_type === 'ordering' ? 'text-gray-500' : 'text-gray-700'}`}>
+                  Ordering {formData.service_type === 'ordering' && '(Auto-enabled)'}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${formData.service_type === 'walk_in' ? 'cursor-default' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={formData.can_walk_in}
                   onChange={() => handleCheckboxChange('can_walk_in')}
-                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
+                  disabled={formData.service_type === 'walk_in'}
+                  className={`w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200 ${formData.service_type === 'walk_in' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
-                <span className="text-sm text-gray-700">Walk-in</span>
+                <span className={`text-sm ${formData.service_type === 'walk_in' ? 'text-gray-500' : 'text-gray-700'}`}>
+                  Walk-in {formData.service_type === 'walk_in' && '(Auto-enabled)'}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={`flex items-center gap-2 ${formData.service_type === 'contact' ? 'cursor-default' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={formData.requires_contact}
                   onChange={() => handleCheckboxChange('requires_contact')}
-                  className="w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200"
+                  disabled={formData.service_type === 'contact'}
+                  className={`w-5 h-5 text-purple-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-gray-50 checked:bg-purple-600 transition-all duration-200 ${formData.service_type === 'contact' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
-                <span className="text-sm text-gray-700">Contact</span>
+                <span className={`text-sm ${formData.service_type === 'contact' ? 'text-gray-500' : 'text-gray-700'}`}>
+                  Contact {formData.service_type === 'contact' && '(Auto-enabled)'}
+                </span>
               </label>
             </div>
           </div>

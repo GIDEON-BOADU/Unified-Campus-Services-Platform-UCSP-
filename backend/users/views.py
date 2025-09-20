@@ -113,13 +113,50 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
-    http_method_names = ["get", "put", "patch"]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['username', 'email', 'first_name', 'last_name']
+    filterset_fields = ['user_type', 'is_active']
+    ordering_fields = ['created_at', 'last_login', 'username']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
         if getattr(user, "user_type", None) == "admin":
             return User.objects.all()
         return User.objects.filter(id=user.id)
+
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action in ['create', 'destroy']:
+            permission_classes = [IsAdminUserType]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def create(self, request, *args, **kwargs):
+        """Create a new user (admin only)"""
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                UserProfileSerializer(user).data, 
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a user (admin only)"""
+        user = self.get_object()
+        # Prevent admin from deleting themselves
+        if user.id == request.user.id:
+            return Response(
+                {"error": "You cannot delete your own account"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class VendorApplicationViewSet(viewsets.ModelViewSet):
@@ -218,85 +255,6 @@ def reject_vendor_application(request, application_id: int):
     return Response({"message": "Rejection failed", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
-def refresh_token_view(request):
-    """
-    Refresh access token with rotation for enhanced security.
-    
-    Endpoint: POST /api/auth/refresh/
-    
-    This endpoint implements refresh token rotation:
-    - Validates the current refresh token
-    - Generates new access and refresh tokens
-    - Blacklists the old refresh token immediately
-    - Returns new tokens to the client
-    """
-    refresh_token_data = request.data.get('refresh')
-    
-    if not refresh_token_data:
-        return Response({
-            'error': 'Refresh token is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        # Check if token is blacklisted
-        if BlacklistedToken.objects.filter(token=refresh_token_data).exists():
-            return Response({
-                'error': 'Refresh token has been revoked'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Decode and validate refresh token using JWT library
-        try:
-            # Decode the refresh token to get user info
-            from rest_framework_simplejwt.exceptions import TokenError
-            
-            # Try to decode as JWT token
-            token = RefreshToken(refresh_token_data)
-            user_id = token.payload.get('user_id')
-            
-            if not user_id:
-                # Fallback: try to get user from token payload
-                user_id = token.payload.get('sub')  # JWT standard field
-                
-            if not user_id:
-                return Response({
-                    'error': 'Invalid refresh token format'
-                }, status=status.HTTP_401_UNAUTHORIZED)
-            
-            # Get user
-            try:
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                return Response({
-                    'error': 'User not found'
-                }, status=status.HTTP_401_UNAUTHORIZED)
-            
-            # Generate new tokens using JWT library
-            new_refresh = RefreshToken.for_user(user)
-            new_access_token = str(new_refresh.access_token)
-            new_refresh_token = str(new_refresh)
-            
-            # Blacklist the old refresh token immediately
-            BlacklistedToken.objects.create(token=refresh_token_data, user=user)
-            
-            return Response({
-                'access': new_access_token,
-                'refresh': new_refresh_token,
-                'access_token_expires_in': 15 * 60,  # 15 minutes in seconds
-                'refresh_token_expires_in': 7 * 24 * 60 * 60, # 7 days in seconds
-                'token_type': 'Bearer'
-            })
-            
-        except TokenError as e:
-            return Response({
-                'error': f'Invalid refresh token: {str(e)}'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-    except Exception as e:
-        return Response({
-            'error': 'Token refresh failed'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

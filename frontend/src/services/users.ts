@@ -17,7 +17,7 @@ const transformUser = (data: any): User => ({
 
 export const getUsers = async (): Promise<User[]> => {
   try {
-    const data = await apiClient.get<any>(API_ENDPOINTS.AUTH.PROFILE);
+    const data = await apiClient.get<any>(API_ENDPOINTS.USERS.LIST);
     
     // Handle different response formats
     let usersArray: any[] = [];
@@ -53,7 +53,7 @@ export const getUsers = async (): Promise<User[]> => {
 
 export const getUserById = async (id: string): Promise<User | null> => {
   try {
-    const data = await apiClient.get<any>(`${API_ENDPOINTS.AUTH.PROFILE}${id}/`);
+    const data = await apiClient.get<any>(API_ENDPOINTS.USERS.DETAIL(id));
     return transformUser(data);
   } catch (error: any) {
     if (error?.status === 404) return null;
@@ -69,7 +69,7 @@ export const addUser = async (userData: {
   userType: 'student' | 'vendor' | 'admin';
   password: string;
 }): Promise<User> => {
-  const res = await apiClient.post<any>(API_ENDPOINTS.AUTH.REGISTER, {
+  const res = await apiClient.post<any>(API_ENDPOINTS.USERS.CREATE, {
     first_name: userData.firstName,
     last_name: userData.lastName,
     email: userData.email,
@@ -77,11 +77,11 @@ export const addUser = async (userData: {
     user_type: userData.userType,
     password: userData.password,
   });
-  return transformUser(res.user || res);
+  return transformUser(res);
 };
 
 export const updateUser = async (id: string, data: Partial<User>): Promise<User> => {
-  const res = await apiClient.put<any>(`${API_ENDPOINTS.AUTH.PROFILE}${id}/`, {
+  const res = await apiClient.put<any>(API_ENDPOINTS.USERS.UPDATE(id), {
     first_name: data.firstName || '',
     last_name: data.lastName || '',
     email: data.email,
@@ -92,5 +92,5 @@ export const updateUser = async (id: string, data: Partial<User>): Promise<User>
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-  return apiClient.delete<void>(`${API_ENDPOINTS.AUTH.PROFILE}${id}/`);
+  return apiClient.delete<void>(API_ENDPOINTS.USERS.DELETE(id));
 };

@@ -3,6 +3,10 @@ import { DashboardStats } from './DashboardStats';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminService, type AdminStats, type AdminActivity, type QuickActionCounts } from '../../services/admin';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { PerformanceMonitor } from '../admin/PerformanceMonitor';
+import { AdminAnalytics } from '../admin/AdminAnalytics';
+import AdminVendorManagement from '../admin/AdminVendorManagement';
+import { AdminVendorApplications } from '../admin/AdminVendorApplications';
 import { useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard,
@@ -32,7 +36,7 @@ import {
 } from 'lucide-react';
 
 // Navigation sections
-type NavigationSection = 'overview' | 'users' | 'businesses' | 'applications' | 'orders' | 'complaints' | 'analytics' | 'settings' | 'system';
+type NavigationSection = 'overview' | 'users' | 'businesses' | 'applications' | 'orders' | 'complaints' | 'analytics' | 'settings' | 'system' | 'performance' | 'vendors';
 
 interface NavItem {
   id: NavigationSection;
@@ -107,6 +111,13 @@ export const AdminDashboard: React.FC = () => {
       color: 'from-purple-500 to-purple-600'
     },
     {
+      id: 'vendors',
+      label: 'Vendors',
+      icon: <Building2 className="w-5 h-5" />,
+      description: 'Vendor profiles & payment info',
+      color: 'from-emerald-500 to-emerald-600'
+    },
+    {
       id: 'applications',
       label: 'Applications',
       icon: <FileText className="w-5 h-5" />,
@@ -136,6 +147,13 @@ export const AdminDashboard: React.FC = () => {
       icon: <BarChart3 className="w-5 h-5" />,
       description: 'Platform analytics',
       color: 'from-indigo-500 to-indigo-600'
+    },
+    {
+      id: 'performance',
+      label: 'Performance',
+      icon: <Zap className="w-5 h-5" />,
+      description: 'Performance monitoring',
+      color: 'from-purple-500 to-purple-600'
     },
     {
       id: 'settings',
@@ -466,24 +484,7 @@ export const AdminDashboard: React.FC = () => {
         );
 
       case 'applications':
-        return (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Vendor Applications</h1>
-                <p className="text-lg text-gray-600">Review and manage vendor applications</p>
-              </div>
-              <button className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-medium hover:bg-orange-700 transition-colors">
-                View All
-              </button>
-            </div>
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
-              <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Applications Coming Soon</h3>
-              <p className="text-gray-600">This feature will be available in future updates</p>
-            </div>
-          </div>
-        );
+        return <AdminVendorApplications />;
 
       case 'orders':
         return (
@@ -526,19 +527,10 @@ export const AdminDashboard: React.FC = () => {
         );
 
       case 'analytics':
-        return (
-          <div className="space-y-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Platform Analytics</h1>
-              <p className="text-lg text-gray-600">Comprehensive platform insights and reports</p>
-            </div>
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
-              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Analytics Coming Soon</h3>
-              <p className="text-gray-600">Detailed analytics will be available in future updates</p>
-            </div>
-          </div>
-        );
+        return <AdminAnalytics />;
+
+      case 'vendors':
+        return <AdminVendorManagement />;
 
       case 'settings':
         return (
@@ -569,6 +561,9 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         );
+
+      case 'performance':
+        return <PerformanceMonitor />;
 
       default:
         return null;

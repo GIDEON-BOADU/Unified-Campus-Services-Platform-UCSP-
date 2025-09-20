@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.db import IntegrityError
 from .models import Booking
 from .serializers import BookingSerializer, BookingStatusUpdateSerializer
+from realtime_notifications.services import notification_service
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -52,12 +53,21 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Set the student when creating a booking.
+        Set the student when creating a booking and send notifications.
         
         Args:
             serializer: Booking serializer instance
         """
-        serializer.save(student=self.request.user)
+        booking = serializer.save(student=self.request.user)
+        
+        # Send real-time notification to vendor
+        try:
+            notification_service.send_booking_notification(booking)
+        except Exception as e:
+            # Log error but don't fail the booking creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send booking notification: {e}")
 
     def perform_update(self, serializer):
         """
@@ -258,18 +268,18 @@ class BookingViewSet(viewsets.ModelViewSet):
                 bookings = Booking.objects.filter(
                     student=user,
                     booking_date__gte=now,
-                    status__in=['pending', 'confirmed']
+                    booking_status__in=['pending', 'confirmed']
                 ).order_by('booking_date')
             elif user.user_type == 'vendor':
                 bookings = Booking.objects.filter(
                     service__vendor=user,
                     booking_date__gte=now,
-                    status__in=['pending', 'confirmed']
+                    booking_status__in=['pending', 'confirmed']
                 ).order_by('booking_date')
             else:
                 bookings = Booking.objects.filter(
                     booking_date__gte=now,
-                    status__in=['pending', 'confirmed']
+                    booking_status__in=['pending', 'confirmed']
                 ).order_by('booking_date')
             
             serializer = BookingSerializer(bookings, many=True)

@@ -7,11 +7,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
-from django.db import IntegrityError
-from django.db.models import Count, Avg, Sum
+from django.db import IntegrityError, models
+from django.db.models import Count, Avg, Sum, Q
 from django.utils import timezone
 from datetime import timedelta
-from .models import Service, Order, Review, VendorProfile
+from .models import Service, Order, Review, VendorProfile, PrintRequest
 from bookings.models import Booking
 from payments.models import Payment
 from .serializers import (
@@ -21,6 +21,7 @@ from .serializers import (
 )
 from bookings.serializers import BookingSerializer
 from payments.serializers import PaymentSerializer
+from realtime_notifications.services import notification_service
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -74,6 +75,29 @@ class ServiceViewSet(viewsets.ModelViewSet):
         elif self.action in ['update_availability']:
             return ServiceAvailabilitySerializer
         return ServiceSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new service and return it in the correct format.
+        """
+        try:
+            # Create the service
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            service = serializer.save(vendor=request.user)
+            
+            # Return the service in the correct format
+            response_serializer = ServiceListSerializer(service)
+            return Response({
+                'message': 'Service created successfully',
+                'service': response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Failed to create service',
+                'errors': {'detail': str(e)}
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_create(self, serializer):
         """
@@ -464,6 +488,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'errors': {'detail': 'An unexpected error occurred.'}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
     @action(detail=False, methods=['get'])
     def top_rated(self, request):
         """
@@ -615,16 +641,46 @@ class ServiceViewSet(viewsets.ModelViewSet):
             
             # Get vendor profile info
             vendor = services.first().vendor
-            vendor_info = {
-                'id': vendor.id,
-                'username': vendor.username,
-                'business_name': getattr(vendor.vendor_profile, 'business_name', vendor.username),
-                'description': getattr(vendor.vendor_profile, 'description', ''),
-                'business_hours': getattr(vendor.vendor_profile, 'business_hours', ''),
-                'address': getattr(vendor.vendor_profile, 'address', ''),
-                'phone': getattr(vendor.vendor_profile, 'phone', ''),
-                'is_verified': getattr(vendor.vendor_profile, 'is_verified', False),
-            }
+            try:
+                vendor_profile = vendor.vendor_profile
+                vendor_info = {
+                    'id': vendor.id,
+                    'username': vendor.username,
+                    'business_name': getattr(vendor_profile, 'business_name', vendor.username),
+                    'description': getattr(vendor_profile, 'description', ''),
+                    'business_hours': getattr(vendor_profile, 'business_hours', ''),
+                    'address': getattr(vendor_profile, 'address', ''),
+                    'phone': getattr(vendor_profile, 'phone', ''),
+                    'email': getattr(vendor_profile, 'email', ''),
+                    'website': getattr(vendor_profile, 'website', ''),
+                    'is_verified': getattr(vendor_profile, 'is_verified', False),
+                    # Mobile Money fields
+                    'mtn_momo_number': getattr(vendor_profile, 'mtn_momo_number', ''),
+                    'vodafone_cash_number': getattr(vendor_profile, 'vodafone_cash_number', ''),
+                    'airtel_money_number': getattr(vendor_profile, 'airtel_money_number', ''),
+                    'telecel_cash_number': getattr(vendor_profile, 'telecel_cash_number', ''),
+                    'preferred_payment_method': getattr(vendor_profile, 'preferred_payment_method', ''),
+                }
+            except AttributeError:
+                # Vendor doesn't have a profile yet
+                vendor_info = {
+                    'id': vendor.id,
+                    'username': vendor.username,
+                    'business_name': vendor.username,
+                    'description': '',
+                    'business_hours': '',
+                    'address': '',
+                    'phone': '',
+                    'email': '',
+                    'website': '',
+                    'is_verified': False,
+                    # Mobile Money fields - empty for vendors without profiles
+                    'mtn_momo_number': '',
+                    'vodafone_cash_number': '',
+                    'airtel_money_number': '',
+                    'telecel_cash_number': '',
+                    'preferred_payment_method': '',
+                }
             
             return Response({
                 'message': f'Services from {vendor_info["business_name"]} retrieved successfully',
@@ -638,10 +694,154 @@ class ServiceViewSet(viewsets.ModelViewSet):
                 'message': 'Failed to retrieve vendor services',
                 'errors': {'detail': 'An unexpected error occurred.'}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @action(detail=True, methods=['post'], url_path='upload-print-file')
+    def upload_print_file(self, request, pk=None):
+        """
+        Upload a file for printing service.
+        
+        Endpoint: POST /api/services/{id}/upload-print-file/
+        
+        FormData:
+        - file: The document to print
+        - copies: Number of copies
+        - paper_size: A4, A3, etc.
+        - color_mode: black_white, color
+        - special_instructions: Any special requirements
+        - contact_phone: Student's phone number
+        - pickup_location: Where to pick up
+        
+        Returns:
+        - 201: File uploaded successfully
+        - 400: Validation errors
+        - 404: Service not found
+        """
+        try:
+            service = self.get_object()
+            
+            # Check if service is printing type
+            if service.category != 'printing':
+                return Response({
+                    'message': 'Service is not a printing service',
+                    'errors': {'detail': 'This endpoint is only for printing services.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get uploaded file
+            file = request.FILES.get('file')
+            if not file:
+                return Response({
+                    'message': 'No file provided',
+                    'errors': {'file': 'File is required.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate file type
+            allowed_types = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'image/jpeg',
+                'image/png'
+            ]
+            
+            if file.content_type not in allowed_types:
+                return Response({
+                    'message': 'Invalid file type',
+                    'errors': {'file': 'Only PDF, DOC, DOCX, TXT, JPG, PNG files are allowed.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate file size (max 10MB)
+            if file.size > 10 * 1024 * 1024:
+                return Response({
+                    'message': 'File too large',
+                    'errors': {'file': 'File size must be less than 10MB.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create print request record
+            print_request = PrintRequest.objects.create(
+                service=service,
+                student=request.user,
+                file=file,
+                copies=int(request.data.get('copies', 1)),
+                paper_size=request.data.get('paper_size', 'A4'),
+                color_mode=request.data.get('color_mode', 'black_white'),
+                special_instructions=request.data.get('special_instructions', ''),
+                contact_phone=request.data.get('contact_phone', ''),
+                pickup_location=request.data.get('pickup_location', ''),
+                status='pending'
+            )
+            
+            return Response({
+                'message': 'Print request submitted successfully',
+                'print_request_id': print_request.id,
+                'file_url': print_request.file.url,
+                'status': print_request.status
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Failed to upload print file',
+                'errors': {'detail': 'An unexpected error occurred.'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def my_services(self, request):
+        """
+        Get current vendor's own services.
+        
+        Endpoint: GET /api/services/my_services/
+        
+        Authentication: Required (JWT token)
+        Permissions: Only vendors can access their own services
+        
+        Returns:
+        - 200: List of vendor's services
+        - 403: Permission denied (not a vendor)
+        """
+        try:
+            user = request.user
+            
+            # Check if user is a vendor
+            if user.user_type != 'vendor':
+                return Response({
+                    'message': 'Permission denied',
+                    'errors': {'detail': 'Only vendors can access their services.'}
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get vendor's services
+            services = self.get_queryset().filter(vendor=user).order_by('-created_at')
+            
+            # Apply filters if provided
+            service_type = request.query_params.get('service_type')
+            if service_type:
+                services = services.filter(service_type=service_type)
+            
+            category = request.query_params.get('category')
+            if category:
+                services = services.filter(category=category)
+            
+            is_available = request.query_params.get('is_available')
+            if is_available is not None:
+                services = services.filter(is_available=is_available.lower() == 'true')
+            
+            serializer = ServiceListSerializer(services, many=True)
+            
+            return Response({
+                'message': 'Your services retrieved successfully',
+                'services': serializer.data,
+                'total_services': services.count()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': 'Failed to retrieve your services',
+                'errors': {'detail': 'An unexpected error occurred.'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'by_type', 'by_category', 'reviews', 'top_rated', 'popular', 'vendor_services', 'contact_info', 'categories']:
+        if self.action in ['list', 'retrieve', 'by_type', 'by_category', 'reviews', 'top_rated', 'popular', 'vendor_services', 'contact_info', 'categories', 'by_user_id']:
             return [AllowAny()]
+        elif self.action in ['my_services']:
+            return [IsAuthenticated()]
         return [IsAuthenticated()]
 
 
@@ -681,12 +881,21 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Set the customer when creating an order.
+        Set the customer when creating an order and send notifications.
         
         Args:
             serializer: Order serializer instance
         """
-        serializer.save(customer=self.request.user)
+        order = serializer.save(customer=self.request.user)
+        
+        # Send real-time notification to vendor
+        try:
+            notification_service.send_order_notification(order)
+        except Exception as e:
+            # Log error but don't fail the order creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send order notification: {e}")
 
     def perform_update(self, serializer):
         """
@@ -991,7 +1200,21 @@ class VendorProfileViewSet(viewsets.ModelViewSet):
         if self.request.user.user_type != 'vendor' or profile.user != self.request.user:
             raise PermissionError("You can only update your own vendor profile.")
         
-        serializer.save()
+        try:
+            serializer.save()
+        except Exception as e:
+            print(f"Error saving vendor profile: {e}")
+            print(f"Serializer data: {serializer.validated_data}")
+            print(f"Serializer errors: {serializer.errors}")
+            raise
+
+    def get_permissions(self):
+        """
+        Set permissions based on the action.
+        """
+        if self.action in ['by_user_id', 'verified_vendors']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     @action(detail=False, methods=['get'])
     def my_profile(self, request):
@@ -1030,6 +1253,49 @@ class VendorProfileViewSet(viewsets.ModelViewSet):
                 'profile': serializer.data
             }, status=status.HTTP_200_OK)
             
+        except Exception as e:
+            return Response({
+                'message': 'Failed to retrieve vendor profile',
+                'errors': {'detail': 'An unexpected error occurred.'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def by_user_id(self, request):
+        """
+        Get vendor profile by user ID (public endpoint).
+        
+        Endpoint: GET /api/vendor-profiles/by_user_id/?user_id=123
+        
+        Query Parameters:
+        - user_id: ID of the user (required)
+        
+        Returns:
+        - 200: Vendor profile information
+        - 404: Vendor profile not found
+        """
+        try:
+            user_id = request.query_params.get('user_id')
+            if not user_id:
+                return Response({
+                    'message': 'User ID parameter is required',
+                    'errors': {'user_id': 'Please specify a user ID.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                profile = VendorProfile.objects.get(user_id=user_id, is_active=True)
+                serializer = VendorProfileSerializer(profile)
+                
+                return Response({
+                    'message': 'Vendor profile retrieved successfully',
+                    'profile': serializer.data
+                }, status=status.HTTP_200_OK)
+                
+            except VendorProfile.DoesNotExist:
+                return Response({
+                    'message': 'Vendor profile not found',
+                    'errors': {'user_id': 'No active vendor profile found for this user.'}
+                }, status=status.HTTP_404_NOT_FOUND)
+                
         except Exception as e:
             return Response({
                 'message': 'Failed to retrieve vendor profile',
@@ -1292,4 +1558,8 @@ class StudentPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         Returns:
             QuerySet: Payments for the current student
         """
-        return Payment.objects.filter(student=self.request.user)
+        user = self.request.user
+        # Filter payments where the student is either the booking student or order customer
+        return Payment.objects.filter(
+            Q(booking__student=user) | Q(order__customer=user)
+        ).distinct()

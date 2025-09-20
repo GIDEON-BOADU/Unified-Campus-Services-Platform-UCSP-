@@ -5,7 +5,7 @@ from .views import (
     VendorApplicationViewSet, UserViewSet,
     submit_vendor_application, my_vendor_application,
     approve_vendor_application, reject_vendor_application,
-    refresh_token_view, test_request
+    test_request
 )
 
 router = DefaultRouter()
@@ -23,6 +23,5 @@ urlpatterns = [
     path('vendor-applications/my/', my_vendor_application, name='my_vendor_application'),
     path('vendor-applications/<int:application_id>/approve/', approve_vendor_application, name='approve_vendor_application'),
     path('vendor-applications/<int:application_id>/reject/', reject_vendor_application, name='reject_vendor_application'),
-    path('auth/refresh/', refresh_token_view, name='refresh_token'),
     path('', include(router.urls)),
 ]

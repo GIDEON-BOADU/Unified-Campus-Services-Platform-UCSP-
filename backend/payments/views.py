@@ -271,8 +271,8 @@ def process_paystack_payment(request):
             payment = serializer.save()
             
             # Update booking status to confirmed if it was pending
-            if payment.booking.status == 'pending':
-                payment.booking.status = 'confirmed'
+            if payment.booking.booking_status == 'pending':
+                payment.booking.booking_status = 'confirmed'
                 payment.booking.save()
             
             return Response({
@@ -290,4 +290,247 @@ def process_paystack_payment(request):
             'message': 'Payment processing failed',
             'errors': {'detail': 'An unexpected error occurred.'}
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-# Create your views here.
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initiate_momo_payment(request):
+    """
+    Initiate a Mobile Money payment (Development/Dummy version).
+    
+    Endpoint: POST /api/payments/initiate/
+    
+    Authentication: Required (JWT token)
+    
+    Required fields:
+    - amount: Payment amount (decimal)
+    - phone: Phone number for MoMo payment
+    - provider: Mobile money provider ('mtn', 'vodafone', 'airtel', 'telecel')
+    - order_id: ID of the order (optional)
+    - booking_id: ID of the booking (optional)
+    
+    Returns:
+    - 201: Payment initiated successfully with fake response
+    - 400: Validation errors
+    - 403: Permission denied
+    """
+    try:
+        amount = request.data.get('amount')
+        phone = request.data.get('phone')
+        provider = request.data.get('provider', 'mtn')
+        order_id = request.data.get('order_id')
+        booking_id = request.data.get('booking_id')
+        
+        # Validate required fields
+        if not amount:
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': {'amount': 'Amount is required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not phone:
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': {'phone': 'Phone number is required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate amount
+        try:
+            amount = float(amount)
+            if amount <= 0:
+                raise ValueError("Amount must be greater than zero")
+        except (ValueError, TypeError):
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': {'amount': 'Amount must be a positive number.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate provider
+        valid_providers = ['mtn', 'vodafone', 'airtel', 'telecel']
+        if provider not in valid_providers:
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': {'provider': f'Provider must be one of: {", ".join(valid_providers)}'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate that either order_id or booking_id is provided
+        if not order_id and not booking_id:
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': {'detail': 'Either order_id or booking_id is required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the order or booking
+        order = None
+        booking = None
+        
+        if order_id:
+            try:
+                from services.models import Order
+                order = get_object_or_404(Order, id=order_id)
+                # Check permissions
+                if order.customer != request.user:
+                    return Response({
+                        'message': 'Permission denied',
+                        'errors': {'detail': 'You can only make payments for your own orders.'}
+                    }, status=status.HTTP_403_FORBIDDEN)
+            except Exception:
+                return Response({
+                    'message': 'Payment initiation failed',
+                    'errors': {'order_id': 'Invalid order ID.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if booking_id:
+            try:
+                booking = get_object_or_404(Booking, id=booking_id)
+                # Check permissions
+                if booking.student != request.user:
+                    return Response({
+                        'message': 'Permission denied',
+                        'errors': {'detail': 'You can only make payments for your own bookings.'}
+                    }, status=status.HTTP_403_FORBIDDEN)
+            except Exception:
+                return Response({
+                    'message': 'Payment initiation failed',
+                    'errors': {'booking_id': 'Invalid booking ID.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate fake reference ID (UUID)
+        reference_id = str(uuid.uuid4())
+        
+        # Create payment record
+        payment_data = {
+            'amount': amount,
+            'payment_method': 'mobile_money',
+            'mobile_money_provider': provider,
+            'phone_number': phone,
+            'reference_number': reference_id,
+            'transaction_id': f"MOMO_{uuid.uuid4().hex[:16].upper()}",
+            'status': 'pending',
+            'payment_notes': f'MoMo payment initiated via {provider.upper()}'
+        }
+        
+        if order:
+            payment_data['order'] = order
+        if booking:
+            payment_data['booking'] = booking
+        
+        serializer = PaymentSerializer(data=payment_data)
+        if serializer.is_valid():
+            payment = serializer.save()
+            
+            # Create fake MoMo API response
+            fake_response = {
+                'referenceId': reference_id,
+                'status': 'PENDING',
+                'amount': amount,
+                'phone': phone,
+                'provider': provider.upper(),
+                'message': 'Payment initiated successfully. Please complete the transaction on your mobile device.',
+                'payment_id': payment.id,
+                'transaction_id': payment.transaction_id,
+                'created_at': payment.created_at.isoformat()
+            }
+            
+            return Response({
+                'message': 'MoMo payment initiated successfully',
+                'payment': fake_response
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                'message': 'Payment initiation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({
+            'message': 'Payment initiation failed',
+            'errors': {'detail': 'An unexpected error occurred.'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_momo_payment(request):
+    """
+    Verify a Mobile Money payment status (Development/Dummy version).
+    
+    Endpoint: POST /api/payments/verify/
+    
+    Authentication: Required (JWT token)
+    
+    Required fields:
+    - reference_id: Reference ID from payment initiation
+    
+    Returns:
+    - 200: Payment status retrieved
+    - 400: Validation errors
+    - 404: Payment not found
+    """
+    try:
+        reference_id = request.data.get('reference_id')
+        
+        if not reference_id:
+            return Response({
+                'message': 'Payment verification failed',
+                'errors': {'reference_id': 'Reference ID is required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find payment by reference number
+        try:
+            payment = Payment.objects.get(reference_number=reference_id)
+        except Payment.DoesNotExist:
+            return Response({
+                'message': 'Payment not found',
+                'errors': {'reference_id': 'No payment found with this reference ID.'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check permissions
+        can_view = False
+        if request.user.user_type == 'student':
+            if payment.order and payment.order.customer == request.user:
+                can_view = True
+            elif payment.booking and payment.booking.student == request.user:
+                can_view = True
+        elif request.user.user_type == 'vendor':
+            if payment.order and payment.order.service.vendor == request.user:
+                can_view = True
+            elif payment.booking and payment.booking.service.vendor == request.user:
+                can_view = True
+        elif request.user.user_type == 'admin':
+            can_view = True
+        
+        if not can_view:
+            return Response({
+                'message': 'Permission denied',
+                'errors': {'detail': 'You do not have permission to view this payment.'}
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # For development, randomly update status to simulate real MoMo API
+        import random
+        if payment.status == 'pending' and random.random() < 0.8:  # 80% success rate
+            payment.status = 'successful'
+            payment.save()
+        
+        # Create fake verification response
+        verification_response = {
+            'referenceId': reference_id,
+            'status': payment.status.upper(),
+            'amount': float(payment.amount),
+            'phone': payment.phone_number,
+            'provider': payment.mobile_money_provider.upper(),
+            'transaction_id': payment.transaction_id,
+            'verified_at': payment.updated_at.isoformat(),
+            'message': f'Payment {payment.status}'
+        }
+        
+        return Response({
+            'message': 'Payment verification completed',
+            'payment': verification_response
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'message': 'Payment verification failed',
+            'errors': {'detail': 'An unexpected error occurred.'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

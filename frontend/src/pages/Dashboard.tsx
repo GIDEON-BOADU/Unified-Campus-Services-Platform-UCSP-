@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { StudentDashboard } from '../components/dashboard/StudentDashboard';
+import { EnhancedStudentDashboard } from '../components/dashboard/EnhancedStudentDashboard';
 import { VendorDashboard } from '../components/dashboard/VendorDashboard';
 import { AdminDashboard } from '../components/dashboard/AdminDashboard';
 import { Header } from '../components/common/Header';
@@ -41,7 +41,7 @@ export const Dashboard: React.FC = () => {
       case 'admin':
         return <AdminDashboard />;
       default:
-        return <StudentDashboard />;
+        return <EnhancedStudentDashboard />;
     }
   };
 

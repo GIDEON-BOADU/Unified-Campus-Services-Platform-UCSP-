@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Edit, Save, X, Trash2, Image as ImageIcon, Star, Eye, AlertCircle } from 'lucide-react';
 import { Service } from '../../hooks/useServices';
 
@@ -36,6 +36,28 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
   });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(service.images || null);
+
+  // Initialize edit data when service changes, but only if not currently editing
+  useEffect(() => {
+    if (!isEditing) {
+      setEditData({
+        service_name: service.service_name,
+        description: service.description,
+        category: service.category,
+        service_type: service.service_type,
+        base_price: service.base_price || '',
+        is_available: service.is_available,
+        availability_status: service.availability_status,
+        contact_info: service.contact_info || '',
+        location: service.location || '',
+        supports_booking: service.can_book || false,
+        supports_ordering: service.can_order || false,
+        supports_walk_in: service.can_walk_in || false,
+        requires_contact: service.requires_contact || false
+      });
+      setImagePreview(service.images || null);
+    }
+  }, [service, isEditing]);
 
   const handleSave = async () => {
     // Basic validation
@@ -504,10 +526,13 @@ export const EditableProductTile: React.FC<EditableProductTileProps> = ({
             alt={service.service_name}
             className="w-full h-32 object-cover rounded-xl"
             onError={(e) => {
+              console.log('Image failed to load:', service.images);
               // Fallback if image fails to load
               const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              target.nextElementSibling?.classList.remove('hidden');
+              target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NjY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+            }}
+            onLoad={() => {
+              console.log('Image loaded successfully:', service.images);
             }}
           />
           <div className="hidden w-full h-32 bg-gray-100 rounded-xl flex items-center justify-center">

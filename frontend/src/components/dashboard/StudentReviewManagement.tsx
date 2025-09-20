@@ -4,24 +4,17 @@ import {
   Search, 
   Filter, 
   Star, 
-  Clock, 
-  User, 
   Building2, 
-  CheckCircle, 
   XCircle, 
   AlertCircle,
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Eye,
   Edit,
   Trash2,
   Plus,
   SortAsc,
-  SortDesc,
-  MessageCircle,
-  ThumbsUp,
-  ThumbsDown
+  SortDesc
 } from 'lucide-react';
 
 // Review interface based on backend model
@@ -53,71 +46,117 @@ export const StudentReviewManagement: React.FC = () => {
   const [showWriteReview, setShowWriteReview] = useState(false);
   const [editingReview, setEditingReview] = useState<Review | null>(null);
 
-  // Mock data for MVP - will be replaced with real API calls
+  // Fetch reviews from API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setReviews([
-        {
-          id: 1,
-          service: 1,
-          service_name: "Campus Coffee - Espresso",
-          user: 1,
-          user_name: "John Doe",
-          vendor_name: "Campus Coffee Corner",
-          rating: 5,
-          comment: "Amazing coffee! The barista was very friendly and the espresso was perfectly brewed. Will definitely order again!",
-          created_at: "2024-01-15T10:30:00Z",
-          updated_at: "2024-01-15T10:30:00Z"
-        },
-        {
-          id: 2,
-          service: 2,
-          service_name: "Study Space - Private Room",
-          user: 1,
-          user_name: "John Doe",
-          vendor_name: "Study Hub",
-          rating: 4,
-          comment: "Great study environment. The room was clean and quiet. Only giving 4 stars because the AC was a bit too cold.",
-          created_at: "2024-01-14T14:00:00Z",
-          updated_at: "2024-01-14T14:00:00Z"
-        },
-        {
-          id: 3,
-          service: 3,
-          service_name: "Fitness Center - Personal Training",
-          user: 1,
-          user_name: "John Doe",
-          vendor_name: "Campus Fitness",
-          rating: 3,
-          comment: "The trainer was knowledgeable but the session felt rushed. Equipment was in good condition though.",
-          created_at: "2024-01-13T16:00:00Z",
-          updated_at: "2024-01-13T16:00:00Z"
+    const fetchReviews = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await fetch('/api/reviews/?user=me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch reviews');
         }
-      ]);
-      setIsLoading(false);
-    }, 1000);
+        const data = await response.json();
+        setReviews(Array.isArray(data) ? data : data.results || []);
+      } catch (err) {
+        console.error('Error fetching reviews:', err);
+        setError('Failed to fetch reviews. Please try again.');
+        setReviews([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReviews();
   }, []);
 
   // Handle search
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement search functionality
-    console.log('Searching for:', searchQuery);
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (selectedRating) params.append('rating', selectedRating.toString());
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      
+      const response = await fetch(`/api/reviews/?user=me&${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      setReviews(Array.isArray(data) ? data : data.results || []);
+    } catch (err) {
+      console.error('Search error:', err);
+      setError('Search failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle rating filter
-  const handleRatingFilter = (rating: number | '') => {
+  const handleRatingFilter = async (rating: number | '') => {
     setSelectedRating(rating);
-    // TODO: Implement rating filtering
-    console.log('Filtering by rating:', rating);
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (rating) params.append('rating', rating.toString());
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      if (searchQuery) params.append('search', searchQuery);
+      
+      const response = await fetch(`/api/reviews/?user=me&${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Filter failed');
+      const data = await response.json();
+      setReviews(Array.isArray(data) ? data : data.results || []);
+    } catch (err) {
+      console.error('Filter error:', err);
+      setError('Filter failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle date filter
-  const handleDateFilter = () => {
+  const handleDateFilter = async () => {
     if (dateFrom && dateTo) {
-      // TODO: Implement date filtering
-      console.log('Filtering by date range:', dateFrom, 'to', dateTo);
+      try {
+        setIsLoading(true);
+        const params = new URLSearchParams();
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        if (selectedRating) params.append('rating', selectedRating.toString());
+        if (searchQuery) params.append('search', searchQuery);
+        
+        const response = await fetch(`/api/reviews/?user=me&${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+        if (!response.ok) throw new Error('Date filter failed');
+        const data = await response.json();
+        setReviews(Array.isArray(data) ? data : data.results || []);
+      } catch (err) {
+        console.error('Date filter error:', err);
+        setError('Date filter failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -134,8 +173,15 @@ export const StudentReviewManagement: React.FC = () => {
   const handleDeleteReview = async (reviewId: number) => {
     if (window.confirm('Are you sure you want to delete this review? This action cannot be undone.')) {
       try {
-        // TODO: Implement review deletion API call
-        console.log('Deleting review:', reviewId);
+        const response = await fetch(`/api/reviews/${reviewId}/`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete review');
         
         // Update local state
         setReviews(prevReviews => prevReviews.filter(review => review.id !== reviewId));
@@ -155,36 +201,47 @@ export const StudentReviewManagement: React.FC = () => {
   // Handle review submission (create/update)
   const handleSubmitReview = async (reviewData: Partial<Review>) => {
     try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Please log in to submit a review');
+        return;
+      }
+
       if (editingReview) {
-        // TODO: Implement review update API call
-        console.log('Updating review:', reviewData);
+        // Update existing review
+        const response = await fetch(`/api/reviews/${editingReview.id}/`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(reviewData),
+        });
+        
+        if (!response.ok) throw new Error('Failed to update review');
+        const updatedReview = await response.json();
         
         // Update local state
         setReviews(prevReviews => 
           prevReviews.map(review => 
-            review.id === editingReview.id 
-              ? { ...review, ...reviewData, updated_at: new Date().toISOString() }
-              : review
+            review.id === editingReview.id ? updatedReview : review
           )
         );
       } else {
-        // TODO: Implement review creation API call
-        console.log('Creating new review:', reviewData);
+        // Create new review
+        const response = await fetch('/api/reviews/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(reviewData),
+        });
+        
+        if (!response.ok) throw new Error('Failed to create review');
+        const newReview = await response.json();
         
         // Add to local state
-        const newReview: Review = {
-          id: Date.now(), // Temporary ID
-          service: 0, // Will be set by API
-          service_name: '', // Will be set by API
-          user: 1, // Current user ID
-          user_name: 'John Doe', // Current user name
-          vendor_name: '', // Will be set by API
-          rating: reviewData.rating || 5,
-          comment: reviewData.comment || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
         setReviews(prevReviews => [newReview, ...prevReviews]);
       }
       

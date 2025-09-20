@@ -119,6 +119,7 @@ class VendorApplication(models.Model):
         ('transport', 'Transportation'),
         ('health', 'Health & Wellness'),
         ('entertainment', 'Entertainment'),
+        ('gym', 'Gym & Fitness'),
         ('other', 'Other Services'),
     )
     

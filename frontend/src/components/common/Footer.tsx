@@ -11,12 +11,9 @@ import {
   Heart,
   Shield,
   Users,
-  Building2,
-  Globe,
   ArrowUp,
-  MessageCircle,
-  Download,
-  ExternalLink
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -74,12 +71,12 @@ export const Footer: React.FC = () => {
             {/* Quick Links */}
             <div>
               <h4 className="text-lg font-semibold mb-6 text-white flex items-center gap-2">
-                <Globe className="w-5 h-5 text-blue-400" />
+                <BookOpen className="w-5 h-5 text-blue-400" />
                 Quick Links
               </h4>
               <ul className="space-y-3">
                 <li>
-                  <Link to="/" className="text-gray-300 hover:text-blue-400 transition-colors duration-300 flex items-center gap-2 group">
+                  <Link to="/about" className="text-gray-300 hover:text-blue-400 transition-colors duration-300 flex items-center gap-2 group">
                     <span className="w-1 h-1 bg-blue-400 rounded-full group-hover:scale-150 transition-transform duration-300"></span>
                     About UCSP
                   </Link>
@@ -87,7 +84,7 @@ export const Footer: React.FC = () => {
                 <li>
                   <Link to="/services" className="text-gray-300 hover:text-blue-400 transition-colors duration-300 flex items-center gap-2 group">
                     <span className="w-1 h-1 bg-blue-400 rounded-full group-hover:scale-150 transition-transform duration-300"></span>
-                    How It Works
+                    Browse Services
                   </Link>
                 </li>
                 <li>
@@ -97,9 +94,9 @@ export const Footer: React.FC = () => {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/vendor-application" className="text-gray-300 hover:text-blue-400 transition-colors duration-300 flex items-center gap-2 group">
+                  <Link to="/help" className="text-gray-300 hover:text-blue-400 transition-colors duration-300 flex items-center gap-2 group">
                     <span className="w-1 h-1 bg-blue-400 rounded-full group-hover:scale-150 transition-transform duration-300"></span>
-                    Join as Service Provider
+                    Help Center
                   </Link>
                 </li>
                 <li>
@@ -120,8 +117,8 @@ export const Footer: React.FC = () => {
             {/* Customer Support */}
             <div>
               <h4 className="text-lg font-semibold mb-6 text-white flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-green-400" />
-                Customer Support
+                <HelpCircle className="w-5 h-5 text-green-400" />
+                Support & Contact
               </h4>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors duration-300">
@@ -166,18 +163,21 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-6 text-white flex items-center gap-2">
                 <Users className="w-5 h-5 text-purple-400" />
-                Stay Connected
+                Stay Updated
               </h4>
               <p className="text-gray-300 text-sm mb-4 leading-relaxed">
-                Get updates on new vendors, services, and exclusive deals delivered to your inbox.
+                Get notified about new campus services, vendor updates, and exclusive student offers.
               </p>
               
               {/* Newsletter Subscription */}
               <div className="space-y-3 mb-6">
                 <input 
+                  id="newsletter-email"
+                  name="newsletter_email"
                   type="email"
                   placeholder="Enter your email" 
                   className="w-full px-4 py-3 rounded-xl bg-gray-800/50 border border-gray-700 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                  aria-label="Enter your email for newsletter subscription"
                 />
                 <button className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-medium">
                   Subscribe
@@ -186,12 +186,16 @@ export const Footer: React.FC = () => {
               
               {/* App Download */}
               <div className="space-y-3">
-                <p className="text-sm font-medium text-white">Download Our App</p>
-                <button className="w-full px-4 py-3 border-2 border-gray-600 text-gray-300 rounded-xl hover:border-blue-500 hover:text-blue-400 transition-all duration-300 flex items-center justify-center gap-2 group">
-                  <Smartphone className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-                  <span>Coming Soon</span>
-                  <ExternalLink className="h-4 w-4 opacity-50" />
-                </button>
+                <p className="text-sm font-medium text-white">Mobile Access</p>
+                <div className="space-y-2">
+                  <button className="w-full px-4 py-3 border-2 border-gray-600 text-gray-300 rounded-xl hover:border-blue-500 hover:text-blue-400 transition-all duration-300 flex items-center justify-center gap-2 group">
+                    <Smartphone className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+                    <span>Mobile App (Coming Soon)</span>
+                  </button>
+                  <p className="text-xs text-gray-500 text-center">
+                    Currently optimized for mobile browsers
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -211,14 +215,14 @@ export const Footer: React.FC = () => {
               </div>
               
               <div className="flex flex-wrap justify-center gap-6">
-                <Link to="/tracking" className="text-gray-400 hover:text-blue-400 text-sm transition-colors duration-300 flex items-center gap-1">
-                  <span>Order Tracking</span>
-                </Link>
                 <Link to="/help" className="text-gray-400 hover:text-blue-400 text-sm transition-colors duration-300 flex items-center gap-1">
                   <span>Help Center</span>
                 </Link>
-                <Link to="/delivery" className="text-gray-400 hover:text-blue-400 text-sm transition-colors duration-300 flex items-center gap-1">
-                  <span>Delivery Info</span>
+                <Link to="/faq" className="text-gray-400 hover:text-blue-400 text-sm transition-colors duration-300 flex items-center gap-1">
+                  <span>FAQ</span>
+                </Link>
+                <Link to="/contact" className="text-gray-400 hover:text-blue-400 text-sm transition-colors duration-300 flex items-center gap-1">
+                  <span>Contact Us</span>
                 </Link>
               </div>
             </div>
@@ -229,7 +233,7 @@ export const Footer: React.FC = () => {
       {/* Scroll to Top Button */}
       <button
         onClick={scrollToTop}
-        className="fixed bottom-6 right-6 w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-110 z-50 flex items-center justify-center"
+        className="fixed bottom-6 left-6 w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-110 z-40 flex items-center justify-center"
         aria-label="Scroll to top"
       >
         <ArrowUp className="w-5 h-5" />

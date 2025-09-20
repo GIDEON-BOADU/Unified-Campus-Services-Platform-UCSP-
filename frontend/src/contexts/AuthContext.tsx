@@ -8,7 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  signup: (userData: any) => Promise<boolean>;
+  signup: (userData: any) => Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,31 +79,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = useCallback(() => {
     console.log('AuthContext: Logging out user');
     
-    // Clear auth state
-    setUser(null);
-    setIsAuthenticated(false);
-    
-    // Clear tokens and redirect
-    AuthService.logout();
+    try {
+      // Clear auth state
+      setUser(null);
+      setIsAuthenticated(false);
+      console.log('AuthContext: Auth state cleared');
+      
+      // Clear tokens and redirect
+      AuthService.logout();
+      console.log('AuthContext: AuthService logout called');
+      
+    } catch (error) {
+      console.error('AuthContext: Logout error:', error);
+      // Force clear state even if there's an error
+      setUser(null);
+      setIsAuthenticated(false);
+      // Force redirect
+      window.location.href = '/login';
+    }
   }, []);
 
   // Signup function
-  const signup = useCallback(async (userData: any): Promise<boolean> => {
+  const signup = useCallback(async (userData: any): Promise<{ success: boolean; message?: string; error?: string }> => {
     try {
       setIsLoading(true);
-      const success = await AuthService.signup(userData);
+      const result = await AuthService.signup(userData);
       
-      if (success) {
-        const userProfile = await AuthService.getProfile();
-        setUser(userProfile);
-        setIsAuthenticated(true);
-        
-        return true;
+      if (result.success) {
+        // Don't automatically log in after signup - let user login manually
+        // This is more secure and follows best practices
       }
-      return false;
+      
+      return result;
     } catch (error) {
       console.error('Signup failed:', error);
-      return false;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Signup failed'
+      };
     } finally {
       setIsLoading(false);
     }

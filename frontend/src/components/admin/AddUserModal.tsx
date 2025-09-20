@@ -94,10 +94,12 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onA
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 mb-1">
                 First Name *
               </label>
               <input
+                id="first-name"
+                name="firstName"
                 type="text"
                 value={formData.firstName}
                 onChange={(e) => handleChange('firstName', e.target.value)}
@@ -112,10 +114,12 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onA
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 mb-1">
                 Last Name *
               </label>
               <input
+                id="last-name"
+                name="lastName"
                 type="text"
                 value={formData.lastName}
                 onChange={(e) => handleChange('lastName', e.target.value)}
@@ -131,12 +135,14 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onA
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email *
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                id="email"
+                name="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
@@ -152,12 +158,14 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onA
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
               Phone Number
             </label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                id="phone"
+                name="phone"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
@@ -197,10 +205,12 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onA
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password *
             </label>
             <input
+              id="password"
+              name="password"
               type="password"
               value={formData.password}
               onChange={(e) => handleChange('password', e.target.value)}

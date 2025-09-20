@@ -71,7 +71,7 @@ class BookingSerializer(serializers.ModelSerializer):
             if Booking.objects.filter(
                 service=service,
                 booking_date=booking_date,
-                status__in=['pending', 'confirmed']
+                booking_status__in=['pending', 'confirmed']
             ).exists():
                 raise serializers.ValidationError({
                     'booking_date': "This time slot is already booked. Please choose a different time."
@@ -106,7 +106,7 @@ class BookingStatusUpdateSerializer(serializers.ModelSerializer):
             serializers.ValidationError: If status transition is invalid
         """
         if self.instance:
-            current_status = self.instance.status
+            current_status = self.instance.booking_status
             
             # Define valid status transitions
             valid_transitions = {

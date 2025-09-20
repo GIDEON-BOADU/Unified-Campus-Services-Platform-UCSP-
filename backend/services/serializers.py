@@ -1,6 +1,6 @@
 # services/serializers.py
 from rest_framework import serializers
-from .models import Service, Order, Review, VendorProfile, ServiceItem
+from .models import Service, Order, Review, VendorProfile, ServiceItem, PrintRequest
 
 
 class ServiceItemSerializer(serializers.ModelSerializer):
@@ -24,6 +24,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     can_order = serializers.BooleanField(read_only=True)
     requires_contact = serializers.BooleanField(read_only=True)
     can_walk_in = serializers.BooleanField(read_only=True)
+    images = serializers.SerializerMethodField()
     
     class Meta:
         model = Service
@@ -34,6 +35,17 @@ class ServiceSerializer(serializers.ModelSerializer):
             'can_book', 'can_order', 'requires_contact', 'can_walk_in'
         ]
         read_only_fields = ['vendor', 'created_at', 'updated_at']
+    
+    def get_images(self, obj):
+        """
+        Return full URL for service images.
+        """
+        if obj.images:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.images.url)
+            return obj.images.url
+        return None
     
     def validate(self, attrs):
         """
@@ -89,19 +101,32 @@ class ServiceListSerializer(serializers.ModelSerializer):
     - Service type indicators
     - Availability status
     """
+    vendor = serializers.IntegerField(source='vendor.id', read_only=True)
     vendor_name = serializers.CharField(source='vendor.username', read_only=True)
     can_book = serializers.BooleanField(read_only=True)
     can_order = serializers.BooleanField(read_only=True)
     requires_contact = serializers.BooleanField(read_only=True)
+    images = serializers.SerializerMethodField()
     
     class Meta:
         model = Service
         fields = [
-            'id', 'vendor_name', 'service_name', 'description', 'category',
+            'id', 'vendor', 'vendor_name', 'service_name', 'description', 'category',
             'service_type', 'base_price', 'is_available', 'availability_status',
             'location', 'images', 'can_book', 'can_order', 'requires_contact',
             'created_at', 'updated_at'
         ]
+    
+    def get_images(self, obj):
+        """
+        Return full URL for service images.
+        """
+        if obj.images:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.images.url)
+            return obj.images.url
+        return None
 
 
 class ServiceAvailabilitySerializer(serializers.ModelSerializer):
@@ -390,18 +415,40 @@ class VendorProfileSerializer(serializers.ModelSerializer):
     - Business information display
     - Verification status
     - Contact information
+    - User name information
     """
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_email = serializers.CharField(source='user.email', read_only=True)
+    user_first_name = serializers.CharField(source='user.first_name', read_only=True)
+    user_last_name = serializers.CharField(source='user.last_name', read_only=True)
+    user_full_name = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorProfile
         fields = [
-            'id', 'user', 'user_username', 'user_email', 'business_name',
+            'id', 'user', 'user_username', 'user_email', 'user_first_name', 
+            'user_last_name', 'user_full_name', 'business_name',
             'description', 'business_hours', 'address', 'phone', 'email',
-            'website', 'logo', 'is_verified', 'is_active', 'created_at', 'updated_at'
+            'website', 'logo', 'is_verified', 'is_active', 
+            'mtn_momo_number', 'vodafone_cash_number', 'airtel_money_number', 
+            'telecel_cash_number', 'preferred_payment_method',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'is_verified', 'created_at', 'updated_at']
+    
+    def get_user_full_name(self, obj):
+        """
+        Get the full name of the user.
+        
+        Args:
+            obj: VendorProfile instance
+            
+        Returns:
+            str: Full name of the user
+        """
+        first_name = obj.user.first_name or ''
+        last_name = obj.user.last_name or ''
+        return f"{first_name} {last_name}".strip() or obj.user.username
     
     def validate(self, attrs):
         """
@@ -416,19 +463,46 @@ class VendorProfileSerializer(serializers.ModelSerializer):
         Raises:
             serializers.ValidationError: If validation fails
         """
-        # Validate business name uniqueness
-        business_name = attrs.get('business_name')
-        if business_name:
-            existing = VendorProfile.objects.filter(
-                business_name=business_name
-            ).exclude(user=self.context['request'].user)
-            
-            if existing.exists():
+        try:
+            # Validate business name is required
+            business_name = attrs.get('business_name')
+            if not business_name or not business_name.strip():
                 raise serializers.ValidationError({
-                    'business_name': 'A business with this name already exists.'
+                    'business_name': 'This field is required.'
                 })
-        
-        return attrs
+            
+            # Validate business name uniqueness
+            if business_name:
+                # Get the current user from context
+                user = self.context.get('request').user
+                if user:
+                    existing = VendorProfile.objects.filter(
+                        business_name=business_name
+                    ).exclude(user=user)
+                    
+                    if existing.exists():
+                        raise serializers.ValidationError({
+                            'business_name': 'A business with this name already exists.'
+                        })
+            
+            # Validate email format if provided
+            email = attrs.get('email')
+            if email and not email.strip():
+                attrs['email'] = None  # Convert empty string to None
+            
+            # Validate website format if provided
+            website = attrs.get('website')
+            if website and not website.strip():
+                attrs['website'] = None  # Convert empty string to None
+                
+            return attrs
+        except Exception as e:
+            print(f"Validation error: {e}")
+            print(f"Attributes: {attrs}")
+            print(f"Context: {self.context}")
+            raise serializers.ValidationError({
+                'detail': f'Validation error: {str(e)}'
+            })
     
     def create(self, validated_data):
         """
@@ -442,6 +516,142 @@ class VendorProfileSerializer(serializers.ModelSerializer):
         """
         # Set the user to the current user
         validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class PrintRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for PrintRequest model.
+    
+    Features:
+    - Print request display with service and student information
+    - File URL generation
+    - Status validation
+    """
+    service_name = serializers.CharField(source='service.service_name', read_only=True)
+    vendor_name = serializers.CharField(source='service.vendor.username', read_only=True)
+    student_name = serializers.CharField(source='student.username', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PrintRequest
+        fields = [
+            'id', 'service', 'service_name', 'vendor_name', 'student', 'student_name',
+            'file', 'file_url', 'copies', 'paper_size', 'color_mode', 
+            'special_instructions', 'contact_phone', 'pickup_location', 'status',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['service', 'student', 'created_at', 'updated_at']
+    
+    def get_file_url(self, obj):
+        """
+        Return full URL for the uploaded file.
+        
+        Args:
+            obj: PrintRequest instance
+            
+        Returns:
+            str: Full URL to the file or None
+        """
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+
+class PrintRequestCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating print requests.
+    
+    Features:
+    - File validation
+    - Print specifications validation
+    - Student assignment
+    """
+    
+    class Meta:
+        model = PrintRequest
+        fields = [
+            'file', 'copies', 'paper_size', 'color_mode', 
+            'special_instructions', 'contact_phone', 'pickup_location'
+        ]
+    
+    def validate_file(self, value):
+        """
+        Validate uploaded file.
+        
+        Args:
+            value: Uploaded file
+            
+        Returns:
+            File: Validated file
+            
+        Raises:
+            serializers.ValidationError: If file is invalid
+        """
+        if not value:
+            raise serializers.ValidationError('File is required.')
+        
+        # Validate file type
+        allowed_types = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'image/jpeg',
+            'image/png'
+        ]
+        
+        if value.content_type not in allowed_types:
+            raise serializers.ValidationError(
+                'Only PDF, DOC, DOCX, TXT, JPG, PNG files are allowed.'
+            )
+        
+        # Validate file size (max 10MB)
+        if value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError(
+                'File size must be less than 10MB.'
+            )
+        
+        return value
+    
+    def validate_copies(self, value):
+        """
+        Validate number of copies.
+        
+        Args:
+            value: Number of copies
+            
+        Returns:
+            int: Validated copies
+            
+        Raises:
+            serializers.ValidationError: If copies is invalid
+        """
+        if value <= 0:
+            raise serializers.ValidationError(
+                'Number of copies must be greater than zero.'
+            )
+        if value > 100:
+            raise serializers.ValidationError(
+                'Number of copies cannot exceed 100.'
+            )
+        return value
+    
+    def create(self, validated_data):
+        """
+        Create a new print request with student assignment.
+        
+        Args:
+            validated_data: Validated print request data
+            
+        Returns:
+            PrintRequest: Created print request instance
+        """
+        # Set the student to the current user
+        validated_data['student'] = self.context['request'].user
         return super().create(validated_data)
 
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { studentService, Payment } from '../../services/student';
 import { 
   Search, 
   Filter, 
@@ -11,31 +12,15 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Eye,
   Download,
   Printer,
   SortAsc,
   SortDesc,
   DollarSign,
-  Calendar,
   Building2,
   AlertTriangle,
   Info
 } from 'lucide-react';
-
-// Payment interface based on backend model
-interface Payment {
-  id: number;
-  booking: number;
-  service_name: string;
-  vendor_name: string;
-  amount: number;
-  status: 'pending' | 'successful' | 'failed' | 'cancelled';
-  payment_method: string;
-  transaction_id?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export const StudentPaymentHistory: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -50,60 +35,24 @@ export const StudentPaymentHistory: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedPayment, setExpandedPayment] = useState<number | null>(null);
 
-  // Mock data for MVP - will be replaced with real API calls
+  // Fetch payments from API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setPayments([
-        {
-          id: 1,
-          booking: 1,
-          service_name: "Study Space - Private Room",
-          vendor_name: "Study Hub",
-          amount: 15.00,
-          status: 'successful',
-          payment_method: 'Mobile Money',
-          transaction_id: 'TXN_001_2024',
-          created_at: "2024-01-15T10:30:00Z",
-          updated_at: "2024-01-15T10:35:00Z"
-        },
-        {
-          id: 2,
-          booking: 2,
-          service_name: "Fitness Center - Personal Training",
-          vendor_name: "Campus Fitness",
-          amount: 25.00,
-          status: 'pending',
-          payment_method: 'Card',
-          created_at: "2024-01-16T09:15:00Z",
-          updated_at: "2024-01-16T09:15:00Z"
-        },
-        {
-          id: 3,
-          booking: 3,
-          service_name: "Computer Lab - Extended Hours",
-          vendor_name: "Tech Center",
-          amount: 8.50,
-          status: 'successful',
-          payment_method: 'Mobile Money',
-          transaction_id: 'TXN_003_2024',
-          created_at: "2024-01-14T14:00:00Z",
-          updated_at: "2024-01-14T14:02:00Z"
-        },
-        {
-          id: 4,
-          booking: 4,
-          service_name: "Campus Coffee - Espresso",
-          vendor_name: "Campus Coffee Corner",
-          amount: 3.50,
-          status: 'failed',
-          payment_method: 'Card',
-          created_at: "2024-01-13T16:00:00Z",
-          updated_at: "2024-01-13T16:05:00Z"
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    const fetchPayments = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const fetchedPayments = await studentService.getPaymentHistory();
+        setPayments(fetchedPayments);
+      } catch (err) {
+        console.error('Error fetching payments:', err);
+        setError('Failed to fetch payments. Please try again.');
+        setPayments([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPayments();
   }, []);
 
   // Handle search
@@ -139,22 +88,26 @@ export const StudentPaymentHistory: React.FC = () => {
 
   // Get status badge styling
   const getStatusBadgeStyle = (status: Payment['status']) => {
-    const styles = {
+    const styles: Record<Payment['status'], string> = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      processing: 'bg-blue-100 text-blue-800 border-blue-200',
       successful: 'bg-green-100 text-green-800 border-green-200',
       failed: 'bg-red-100 text-red-800 border-red-200',
-      cancelled: 'bg-gray-100 text-gray-800 border-gray-200'
+      cancelled: 'bg-gray-100 text-gray-800 border-gray-200',
+      refunded: 'bg-purple-100 text-purple-800 border-purple-200'
     };
     return styles[status] || styles.pending;
   };
 
   // Get status icon
   const getStatusIcon = (status: Payment['status']) => {
-    const icons = {
+    const icons: Record<Payment['status'], React.ReactElement> = {
       pending: <Clock className="w-4 h-4" />,
+      processing: <Clock className="w-4 h-4" />,
       successful: <CheckCircle className="w-4 h-4" />,
       failed: <XCircle className="w-4 h-4" />,
-      cancelled: <XCircle className="w-4 h-4" />
+      cancelled: <XCircle className="w-4 h-4" />,
+      refunded: <RefreshCw className="w-4 h-4" />
     };
     return icons[status] || icons.pending;
   };
@@ -426,10 +379,12 @@ export const StudentPaymentHistory: React.FC = () => {
                 <div className="col-span-3">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-900">{payment.service_name}</span>
+                    <span className="text-gray-900">
+                      {payment.booking_details?.service_name || 'Service'}
+                    </span>
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    by {payment.vendor_name}
+                    {payment.booking_details?.student_name ? `by ${payment.booking_details.student_name}` : 'Payment'}
                   </div>
                 </div>
 
@@ -517,10 +472,12 @@ export const StudentPaymentHistory: React.FC = () => {
                           <span className="text-gray-600">Created:</span>
                           <span className="text-gray-900">{formatDate(payment.created_at)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Last Updated:</span>
-                          <span className="text-gray-900">{formatDate(payment.updated_at)}</span>
-                        </div>
+cd                         {payment.phone_number && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Phone:</span>
+                            <span className="text-gray-900">{payment.phone_number}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

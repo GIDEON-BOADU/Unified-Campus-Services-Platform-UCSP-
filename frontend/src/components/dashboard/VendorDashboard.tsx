@@ -1,39 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Business, Service } from '../../types';
 import { DashboardStats } from './DashboardStats';
 import { useAuth } from '../../contexts/AuthContext';
-import { useBusinesses } from '../../hooks/useBusinesses';
-import { useServices } from '../../hooks/useServices';
+import { useServices, Service } from '../../hooks/useServices';
+import { useVendorProfile } from '../../hooks/useVendorProfile';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { VendorOrderManagement } from './VendorOrderManagement';
 import { AddProductModal } from './AddProductModal';
 import { ServiceFilters } from './ServiceFilters';
 import { EditableProductTile } from './EditableProductTile';
 import { ServiceDetailModal } from './ServiceDetailModal';
+import { VendorProfileCard } from '../vendor/VendorProfileCard';
+import { VendorProfileEditModal } from '../vendor/VendorProfileEditModal';
+import { VendorAnalytics } from '../vendor/VendorAnalytics';
+import { NotificationCenter } from '../notifications/NotificationCenter';
+import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications';
 import { 
   Building2, 
   Package, 
   ShoppingCart, 
-  TrendingUp, 
-  Star, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Clock, 
   Users,
   Plus,
-  Eye,
-  Edit,
-  MoreVertical,
   Calendar,
-  DollarSign,
   BarChart3,
-  Target,
   RefreshCw,
-  AlertCircle,
-  XCircle,
-  CheckCircle,
-  Clock3,
   LayoutDashboard,
   Settings,
   Bell,
@@ -62,7 +51,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   description: string;
-  badge?: string;
+  badge?: string | undefined;
 }
 
 export const VendorDashboard: React.FC = () => {
@@ -87,6 +76,20 @@ export const VendorDashboard: React.FC = () => {
     deleteService,
     rateService
   } = useServices();
+  
+  // Vendor profile management
+  const {
+    profile: vendorProfile,
+    isLoading: profileLoading,
+    error: profileError,
+    createProfile,
+    updateProfile,
+    refreshProfile
+  } = useVendorProfile();
+  
+  // Real-time notifications
+  const { stats: notificationStats } = useRealtimeNotifications();
+  
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<NavigationSection>('overview');
@@ -94,46 +97,27 @@ export const VendorDashboard: React.FC = () => {
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isServiceDetailModalOpen, setIsServiceDetailModalOpen] = useState(false);
-  
-  // Mock data for MVP - will be replaced with real API calls
-  const [business] = useState<Business>({
-    id: user?.id || '1',
-    name: 'Campus Coffee Corner',
-    description: 'Premium coffee and snacks for students',
-    address: '123 University Ave, Campus Building A',
-    phone: '+1234567890',
-    email: user?.email || 'coffee@campus.edu',
-    isActive: true,
-    isVerified: true,
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-    ownerId: user?.id || '1',
-    ownerName: user?.firstName + ' ' + user?.lastName || 'Business Owner'
-  });
+  const [isProfileEditModalOpen, setIsProfileEditModalOpen] = useState(false);
 
-  // Mock products - will be replaced with real API calls
-  const [products] = useState<Service[]>([
-    {
-      id: '1',
-      name: 'Espresso',
-      description: 'Single shot of espresso',
-      price: 2.50,
-      isAvailable: true,
-      businessId: user?.id || '1',
-      businessName: 'Campus Coffee Corner',
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: '2',
-      name: 'Cappuccino',
-      description: 'Espresso with steamed milk and foam',
-      price: 3.50,
-      isAvailable: true,
-      businessId: user?.id || '1',
-      businessName: 'Campus Coffee Corner',
-      createdAt: '2024-01-01T00:00:00Z'
+  // Profile handling functions
+  const handleProfileSave = async (data: any) => {
+    try {
+      if (vendorProfile) {
+        await updateProfile(data);
+      } else {
+        await createProfile(data);
+      }
+      refreshProfile();
+    } catch (error) {
+      console.error('Error saving profile:', error);
     }
-  ]);
+  };
+
+  const handleProfileEdit = () => {
+    setIsProfileEditModalOpen(true);
+  };
+
+  // Services are now managed through the useServices hook
 
   // Mock orders - will be replaced with real API calls
   const [recentOrders] = useState<Order[]>([
@@ -194,7 +178,7 @@ export const VendorDashboard: React.FC = () => {
       label: 'Notifications',
       icon: <Bell className="w-5 h-5" />,
       description: 'Alerts & updates',
-      badge: '3'
+      badge: notificationStats.unread > 0 ? notificationStats.unread.toString() : undefined
     }
   ];
 
@@ -245,16 +229,25 @@ export const VendorDashboard: React.FC = () => {
   }, [recentOrders, services, lastRefresh]);
 
   // Handle product addition
-  const handleProductAdded = () => {
-    console.log('Product added successfully');
-    // Refresh the services list
-    fetchServices();
+  const handleProductAdded = async () => {
+    console.log('Product added successfully - refreshing services list');
+    try {
+      await fetchServices();
+      console.log('Services refreshed. Current services count:', services.length);
+    } catch (error) {
+      console.error('Error refreshing services after product addition:', error);
+    }
   };
 
   // Handle service update
   const handleServiceUpdate = async (serviceId: string, updatedData: Partial<Service>) => {
     try {
-      await updateService(serviceId, updatedData);
+      // Convert Service data to CreateServiceData format
+      const serviceData = {
+        ...updatedData,
+        base_price: updatedData.base_price || 0
+      };
+      await updateService(serviceId, serviceData);
       // Services will be automatically refreshed
     } catch (error) {
       console.error('Failed to update service:', error);
@@ -339,10 +332,21 @@ export const VendorDashboard: React.FC = () => {
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Building2 className="w-10 h-10 text-white" />
               </div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to Your Business Hub! 🚀</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                Welcome{vendorProfile?.user_full_name ? `, ${vendorProfile.user_full_name}` : user?.firstName ? `, ${user.firstName}` : ''}! 🚀
+              </h1>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-                Manage your campus business, track performance, and grow your customer base. 
-                Everything you need to succeed is right here.
+                {vendorProfile ? (
+                  <>
+                    Manage <strong>{vendorProfile.business_name}</strong>, track performance, and grow your customer base. 
+                    Everything you need to succeed is right here.
+                  </>
+                ) : (
+                  <>
+                    Set up your business profile to start managing your campus business, track performance, and grow your customer base. 
+                    Everything you need to succeed is right here.
+                  </>
+                )}
               </p>
               
               {/* Real-time Quick Stats */}
@@ -386,85 +390,13 @@ export const VendorDashboard: React.FC = () => {
             {/* Business Overview & Recent Orders */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Business Information */}
-              <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-white" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">Business Information</h2>
-                </div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-500">Business Name</label>
-                      <p className="text-lg font-semibold text-gray-900">{business.name}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Target className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-500">Description</label>
-                      <p className="text-gray-900">{business.description}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Phone className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-500">Contact</label>
-                      <p className="text-gray-900">{business.phone}</p>
-                      <p className="text-gray-900">{business.email}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <MapPin className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-500">Address</label>
-                      <p className="text-gray-900">{business.address}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Business Status */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-500">Status</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          business.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {business.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          business.isVerified ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {business.isVerified ? 'Verified' : 'Pending Verification'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-2xl font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg">
-                    Edit Business Profile
-                  </button>
-                </div>
-              </div>
+              <VendorProfileCard
+                profile={vendorProfile}
+                isLoading={profileLoading}
+                error={profileError}
+                onEdit={handleProfileEdit}
+                showEditButton={true}
+              />
 
               {/* Recent Orders */}
               <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8">
@@ -626,19 +558,7 @@ export const VendorDashboard: React.FC = () => {
         );
 
       case 'analytics':
-        return (
-          <div className="space-y-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
-              <p className="text-lg text-gray-600">Track your business performance</p>
-            </div>
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
-              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Analytics Coming Soon</h3>
-              <p className="text-gray-600">Detailed analytics will be available in future updates</p>
-            </div>
-          </div>
-        );
+        return user?.id ? <VendorAnalytics vendorId={parseInt(user.id)} /> : null;
 
       case 'settings':
         return (
@@ -658,14 +578,62 @@ export const VendorDashboard: React.FC = () => {
       case 'notifications':
         return (
           <div className="space-y-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
-              <p className="text-lg text-gray-600">Stay updated with important alerts</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+                <p className="text-lg text-gray-600">Stay updated with important alerts and real-time updates</p>
+              </div>
+              <NotificationCenter className="relative" />
             </div>
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8 text-center">
-              <Bell className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Notifications Coming Soon</h3>
-              <p className="text-gray-600">Notification system will be available in future updates</p>
+            
+            {/* Real-time Notifications Content */}
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8">
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Bell className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Real-Time Notifications</h3>
+                <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+                  Get instant notifications when students book your services, place orders, or leave reviews. 
+                  All notifications are delivered in real-time via WebSocket connection.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                  <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
+                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 mb-2">New Bookings</h4>
+                    <p className="text-sm text-gray-600">Instant alerts when students book your services</p>
+                  </div>
+                  
+                  <div className="bg-green-50 rounded-2xl p-6 border border-green-200">
+                    <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <ShoppingCart className="w-6 h-6 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 mb-2">New Orders</h4>
+                    <p className="text-sm text-gray-600">Real-time notifications for new customer orders</p>
+                  </div>
+                  
+                  <div className="bg-yellow-50 rounded-2xl p-6 border border-yellow-200">
+                    <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Reviews & Feedback</h4>
+                    <p className="text-sm text-gray-600">Get notified when customers leave reviews</p>
+                  </div>
+                </div>
+                
+                <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
+                  <h4 className="font-semibold text-gray-900 mb-2">How it works:</h4>
+                  <ol className="text-left text-gray-600 space-y-2 max-w-md mx-auto">
+                    <li>1. Students book your services or place orders</li>
+                    <li>2. You receive instant notifications via WebSocket</li>
+                    <li>3. Click the bell icon to view all notifications</li>
+                    <li>4. Mark notifications as read to keep track</li>
+                  </ol>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -688,7 +656,7 @@ export const VendorDashboard: React.FC = () => {
                   <Building2 className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-gray-900">{business.name}</h2>
+                  <h2 className="font-bold text-gray-900">{vendorProfile?.business_name || 'Business Dashboard'}</h2>
                   <p className="text-sm text-gray-500">Business Dashboard</p>
                 </div>
               </div>
@@ -697,12 +665,15 @@ export const VendorDashboard: React.FC = () => {
                 <Building2 className="w-6 h-6 text-white" />
               </div>
             )}
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <NotificationCenter className="relative" />
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -749,6 +720,28 @@ export const VendorDashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         <div className="p-8">
+          {/* Real-time notification indicator */}
+          {notificationStats.unread > 0 && activeSection !== 'notifications' && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                <Bell className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-blue-900">
+                  You have {notificationStats.unread} unread notification{notificationStats.unread > 1 ? 's' : ''}
+                </p>
+                <p className="text-sm text-blue-700">
+                  Click the bell icon or go to Notifications to view them
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveSection('notifications')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                View Notifications
+              </button>
+            </div>
+          )}
           {renderSection()}
         </div>
       </div>
@@ -770,6 +763,15 @@ export const VendorDashboard: React.FC = () => {
         }}
         onRate={handleServiceRate}
         isStudent={user?.userType === 'student'}
+      />
+
+      {/* Vendor Profile Edit Modal */}
+      <VendorProfileEditModal
+        isOpen={isProfileEditModalOpen}
+        onClose={() => setIsProfileEditModalOpen(false)}
+        onSave={handleProfileSave}
+        profile={vendorProfile}
+        isLoading={profileLoading}
       />
     </div>
   );

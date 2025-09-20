@@ -1,3 +1,8 @@
+// Class name utility for combining CSS classes
+export const cn = (...classes: (string | undefined | null | false)[]): string => {
+  return classes.filter(Boolean).join(' ');
+};
+
 // Date formatting
 export const formatDate = (date: string | Date): string => {
   const d = new Date(date);

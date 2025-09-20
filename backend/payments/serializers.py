@@ -83,7 +83,7 @@ class PaymentSerializer(serializers.ModelSerializer):
                 "Booking is required for payment."
             )
         
-        if value.status not in ['confirmed', 'pending']:
+        if value.booking_status not in ['confirmed', 'pending']:
             raise serializers.ValidationError(
                 "Payment can only be made for confirmed or pending bookings."
             )

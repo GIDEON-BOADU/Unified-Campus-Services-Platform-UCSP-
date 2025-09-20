@@ -152,8 +152,12 @@ self.addEventListener('notificationclick', (event) => {
 
 // Handle fetch events for offline support
 self.addEventListener('fetch', (event) => {
-  // Only handle API requests
-  if (event.request.url.includes('/api/')) {
+  // Only handle API requests that are not authentication related
+  if (event.request.url.includes('/api/') && 
+      !event.request.url.includes('/api/users/login/') && 
+      !event.request.url.includes('/api/users/register/') &&
+      !event.request.url.includes('/api/users/auth/')) {
+    
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -172,4 +176,6 @@ self.addEventListener('fetch', (event) => {
         })
     );
   }
+  // For authentication requests, let them pass through normally
+  // Don't intercept login/register requests
 });

@@ -51,7 +51,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Added apps
+    'channels',  # Add Django Channels for WebSocket support
     'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # Add JWT token blacklist
     'corsheaders',  # Add CORS headers
     'django_filters',  # Add Django filters
     'bookings',
@@ -59,8 +62,10 @@ INSTALLED_APPS = [
     'users',
     'services',
     'common',
+    'analytics',
     'paystack',
-    
+    'realtime_notifications',  # Add realtime notifications app
+    'ai',  # Add AI app    
 ]
 
 MIDDLEWARE = [
@@ -109,6 +114,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'UCSP_PRJ.wsgi.application'
+ASGI_APPLICATION = 'UCSP_PRJ.asgi.application'
 
 
 # Database
@@ -174,12 +180,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'users.User'
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://172.20.10.3:5173,http://172.20.10.3:3000').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://172.20.10.3:5173',
+    'http://172.20.10.3:3000',
+    'http://172.20.10.3:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
 CORS_ALLOW_CREDENTIALS = True
 
-# Allow all origins in development (be careful in production)
+# Allow all origins in development (would change in production)
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',
@@ -190,7 +208,36 @@ CORS_ALLOWED_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
+    'pragma',
+    'x-forwarded-for',
+    'x-forwarded-proto',
+    'x-forwarded-host',
 ]
+
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+    'HEAD',
+]
+
+# Additional CORS settings for better compatibility
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
+    'authorization',
+    'x-total-count',
+    'x-page-count',
+]
+
+# CORS error handling
+CORS_ALLOW_PRIVATE_NETWORK = True
+CORS_URLS_REGEX = r'^/api/.*$'
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -212,8 +259,8 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # 1 hour access token
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # 7 days refresh token
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # 30 minutes access token
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),  # 1 day refresh token
     'ROTATE_REFRESH_TOKENS': True,  # Issue new refresh token on refresh
     'BLACKLIST_AFTER_ROTATION': True,  # Blacklist old refresh tokens
     'UPDATE_LAST_LOGIN': True,  # Update last login timestamp
@@ -242,3 +289,50 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
+
+# Cache Configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# For production, use Redis:
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django_redis.cache.RedisCache',
+#         'LOCATION': 'redis://127.0.0.1:6379/1',
+#         'OPTIONS': {
+#             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+#         }
+#     }
+# }
+
+# Cache settings
+CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_SECONDS = 300  # 5 minutes
+CACHE_MIDDLEWARE_KEY_PREFIX = 'ucsp'
+
+# Channels Configuration
+# For development, use in-memory channel layer (no Redis required)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
+
+# For production, use Redis:
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }

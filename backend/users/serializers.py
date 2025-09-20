@@ -157,11 +157,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
         Raises:
             serializers.ValidationError: If phone number is invalid
         """
-        if not value.isdigit() or len(value) < 10:
+        if not value:
+            raise serializers.ValidationError(
+                "Phone number is required."
+            )
+        
+        # Remove all non-digit characters
+        digits_only = ''.join(filter(str.isdigit, str(value)))
+        
+        if len(digits_only) < 10:
             raise serializers.ValidationError(
                 "Phone number must contain at least 10 digits."
             )
-        return value
+        return digits_only
 
 
 class UserLoginSerializer(serializers.Serializer):

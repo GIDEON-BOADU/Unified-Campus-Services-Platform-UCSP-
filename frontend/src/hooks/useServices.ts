@@ -1,17 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../services/api';
+import { logger } from '../utils/logger';
 
 export interface Service {
   id: string;
   vendor: string;
   vendor_name: string;
+  vendor_phone?: string;
   service_name: string;
   description: string;
-  category: string;
-  service_type: string;
+  category: 'food' | 'beauty' | 'printing' | 'laundry' | 'academic' | 'transport' | 'health' | 'entertainment' | 'gym' | 'other';
+  service_type: 'booking' | 'ordering' | 'contact' | 'walk_in';
   base_price: number | null;
+  has_flexible_pricing: boolean;
   is_available: boolean;
-  availability_status: string;
+  availability_status: 'available' | 'busy' | 'unavailable' | 'closed';
   contact_info: string;
   location: string;
   images: string | null;
@@ -23,6 +27,8 @@ export interface Service {
   can_walk_in: boolean;
   rating?: number | null;
   total_ratings?: number;
+  // Computed properties for UI
+  can_contact?: boolean;
 }
 
 export interface CreateServiceData {
@@ -65,18 +71,75 @@ export const useServices = () => {
     setError(null);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/services/', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch services');
+      let response;
+      
+      // Use different endpoints based on user type
+      if (user.userType === 'vendor') {
+        console.log('Fetching vendor services from /services/my_services/');
+        // Vendors get their own services
+        response = await apiClient.get('/services/my_services/');
+        console.log('Vendor services response:', response);
+        const servicesData = response.services || response.results || response;
+        console.log('Parsed services data:', servicesData);
+        
+        // Convert IDs to strings if needed and construct proper image URLs
+        const processedServices = Array.isArray(servicesData) ? servicesData.map(service => {
+          console.log('Processing service:', service.service_name, 'Images:', service.images);
+          
+          // Construct proper image URL if image exists
+          let imageUrl = null;
+          if (service.images) {
+            // If it's already a full URL, use it; otherwise construct it
+            if (service.images.startsWith('http')) {
+              imageUrl = service.images;
+            } else {
+              // Ensure the image path starts with / if it doesn't already
+              const imagePath = service.images.startsWith('/') ? service.images : `/${service.images}`;
+              imageUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${imagePath}`;
+            }
+          }
+          
+          return {
+            ...service,
+            id: service.id ? service.id.toString() : service.id,
+            images: imageUrl
+          };
+        }) : [];
+        
+        setServices(processedServices);
+      } else {
+        console.log('Fetching all services from /services/');
+        // Students and admins get all services
+        response = await apiClient.get('/services/');
+        console.log('All services response:', response);
+        const servicesData = response.value || response.results || response;
+        
+        // Convert IDs to strings if needed and construct proper image URLs
+        const processedServices = Array.isArray(servicesData) ? servicesData.map(service => {
+          console.log('Processing student service:', service.service_name, 'Images:', service.images);
+          
+          // Construct proper image URL if image exists
+          let imageUrl = null;
+          if (service.images) {
+            // If it's already a full URL, use it; otherwise construct it
+            if (service.images.startsWith('http')) {
+              imageUrl = service.images;
+            } else {
+              // Ensure the image path starts with / if it doesn't already
+              const imagePath = service.images.startsWith('/') ? service.images : `/${service.images}`;
+              imageUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${imagePath}`;
+            }
+          }
+          
+          return {
+            ...service,
+            id: service.id ? service.id.toString() : service.id,
+            images: imageUrl
+          };
+        }) : [];
+        
+        setServices(processedServices);
       }
-
-      const data = await response.json();
-      setServices(data.results || data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch services');
       console.error('Error fetching services:', err);
@@ -115,10 +178,7 @@ export const useServices = () => {
           availability_status: 'availability_status',
           contact_info: 'contact_info',
           location: 'location',
-          supports_booking: 'supports_booking',
-          supports_ordering: 'supports_ordering',
-          supports_walk_in: 'supports_walk_in',
-          requires_contact: 'requires_contact'
+          // Note: can_book, can_order, can_walk_in, requires_contact are automatically set by backend based on service_type
         };
         
         // Add all text fields with proper mapping
@@ -143,7 +203,7 @@ export const useServices = () => {
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         try {
-          response = await fetch('http://127.0.0.1:8000/api/services/', {
+          response = await fetch('http://localhost:8000/api/services/', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -153,7 +213,7 @@ export const useServices = () => {
             signal: controller.signal
           });
           clearTimeout(timeoutId);
-        } catch (error) {
+        } catch (error: any) {
           clearTimeout(timeoutId);
           if (error.name === 'AbortError') {
             throw new Error('Request timed out after 30 seconds');
@@ -165,6 +225,7 @@ export const useServices = () => {
         const { image, ...jsonData } = serviceData;
         
         // Map frontend fields to backend fields
+        // Note: can_book, can_order, can_walk_in, requires_contact are automatically set by backend based on service_type
         const mappedData = {
           service_name: jsonData.service_name,
           description: jsonData.description,
@@ -175,19 +236,15 @@ export const useServices = () => {
           is_available: jsonData.is_available,
           availability_status: jsonData.availability_status,
           contact_info: jsonData.contact_info,
-          location: jsonData.location,
-          supports_booking: jsonData.can_book,
-          supports_ordering: jsonData.can_order,
-          supports_walk_in: jsonData.can_walk_in,
-          requires_contact: jsonData.requires_contact
+          location: jsonData.location
         };
         
-        console.log('Sending JSON data:', mappedData);
+        logger.debug('Sending JSON data:', mappedData);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         try {
-          response = await fetch('http://127.0.0.1:8000/api/services/', {
+          response = await fetch('http://localhost:8000/api/services/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -197,7 +254,7 @@ export const useServices = () => {
             signal: controller.signal
           });
           clearTimeout(timeoutId);
-        } catch (error) {
+        } catch (error: any) {
           clearTimeout(timeoutId);
           if (error.name === 'AbortError') {
             throw new Error('Request timed out after 30 seconds');
@@ -214,11 +271,25 @@ export const useServices = () => {
         throw new Error(errorData.message || errorData.detail || 'Failed to create service');
       }
 
-      const newService = await response.json();
+      const responseData = await response.json();
+      console.log('Service creation response:', responseData);
+      
+      // Extract the service from the response
+      const newService = responseData.service || responseData;
       console.log('Service created successfully:', newService);
       
+      // Convert ID to string if needed
+      if (newService.id && typeof newService.id === 'number') {
+        newService.id = newService.id.toString();
+      }
+      
       // Add the new service to the list
-      setServices(prev => [newService, ...prev]);
+      setServices(prev => {
+        console.log('Previous services count:', prev.length);
+        const updated = [newService, ...prev];
+        console.log('Updated services count:', updated.length);
+        return updated;
+      });
       
       return newService;
     } catch (err) {
@@ -259,10 +330,7 @@ export const useServices = () => {
           availability_status: 'availability_status',
           contact_info: 'contact_info',
           location: 'location',
-          supports_booking: 'supports_booking',
-          supports_ordering: 'supports_ordering',
-          supports_walk_in: 'supports_walk_in',
-          requires_contact: 'requires_contact'
+          // Note: can_book, can_order, can_walk_in, requires_contact are automatically set by backend based on service_type
         };
         
         // Add all text fields with proper mapping
@@ -283,7 +351,7 @@ export const useServices = () => {
         }
         
         console.log('updateService: Sending FormData with image');
-        response = await fetch(`http://127.0.0.1:8000/api/services/${serviceId}/`, {
+        response = await fetch(`http://localhost:8000/api/services/${serviceId}/`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -307,14 +375,14 @@ export const useServices = () => {
           availability_status: jsonData.availability_status,
           contact_info: jsonData.contact_info,
           location: jsonData.location,
-          supports_booking: jsonData.can_book,
-          supports_ordering: jsonData.can_order,
-          supports_walk_in: jsonData.can_walk_in,
+          can_book: jsonData.can_book,
+          can_order: jsonData.can_order,
+          can_walk_in: jsonData.can_walk_in,
           requires_contact: jsonData.requires_contact
         };
         
         console.log('updateService: Sending JSON data:', mappedData);
-        response = await fetch(`http://127.0.0.1:8000/api/services/${serviceId}/`, {
+        response = await fetch(`http://localhost:8000/api/services/${serviceId}/`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -355,7 +423,7 @@ export const useServices = () => {
     setError(null);
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/services/${serviceId}/`, {
+      const response = await fetch(`http://localhost:8000/api/services/${serviceId}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -393,13 +461,13 @@ export const useServices = () => {
     setError(null);
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/services/${serviceId}/reviews/`, {
+      const response = await fetch(`http://localhost:8000/api/reviews/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         },
-        body: JSON.stringify({ rating, comment })
+        body: JSON.stringify({ service: serviceId, rating, comment })
       });
 
       if (!response.ok) {

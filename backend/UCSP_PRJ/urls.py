@@ -24,11 +24,12 @@ from services.views import ServiceViewSet, OrderViewSet, ReviewViewSet, VendorPr
 from bookings.views import BookingViewSet
 from payments.views import (
     create_payment, payment_list, payment_detail, 
-    process_paystack_payment
+    process_paystack_payment, initiate_momo_payment, verify_momo_payment
 )
 from users.views import (
     UserViewSet
 )
+from common.views import ComplaintViewSet
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -42,6 +43,7 @@ router.register(r'bookings', BookingViewSet, basename='booking')
 router.register(r'reviews', ReviewViewSet, basename='review')
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'vendor-profiles', VendorProfileViewSet, basename='vendor-profile')
+router.register(r'complaints', ComplaintViewSet, basename='complaint')
 
 # Student-specific routes
 router.register(r'student/orders', StudentOrderViewSet, basename='student-order')
@@ -65,12 +67,23 @@ urlpatterns = [
     path('api/payments/', payment_list, name='payment_list'),
     path('api/payments/<int:payment_id>/', payment_detail, name='payment_detail'),
     path('api/payments/paystack/', process_paystack_payment, name='process_paystack_payment'),
+    path('api/payments/initiate/', initiate_momo_payment, name='initiate_momo_payment'),
+    path('api/payments/verify/', verify_momo_payment, name='verify_momo_payment'),
 
     # Admin dashboard
     path('api/admin/dashboard/', admin_dashboard, name='admin_dashboard'),
 
     # Mount users app router to expose vendor-application routes under /api/users/
     path('api/users/', include('users.urls')),
+
+    # Analytics
+    path('api/analytics/', include('analytics.urls')),
+
+    # Real-time Notifications
+    path('api/notifications/', include('realtime_notifications.urls')),
+
+    # AI Services
+    path('api/ai/', include('ai.urls')),
 
     # API Router (placed last)
     path('api/', include(router.urls)),
